@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['2. Climate Data Processing/04. Create OGGM climate input file.py']
+recent_files = ['02. Climate Data Processing/04. Create OGGM climate input file.py', '03. Glacier simulations/04. Run OGGM w. custom climate data.py', '03. Glacier simulations/04. Create OGGM climate input file.py']
 
 [main]
 version = 0.2.0

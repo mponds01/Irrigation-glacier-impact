@@ -25,23 +25,20 @@ This script performs an initial data screening, in 3 sections:
 """ 0 . Input files """
 
 
-def P_T_overview_plot(model,var, timeframe, mode, diftype, inputplot, plotsave):
+def P_T_overview_plot(model, scale, var, timeframe, mode, diftype, inputplot, plotsave):
     
     if mode == 'dif':
         mode_suff = 'total'
     if mode == 'std':
         mode_suff = 'std'
 
-    
-    folder=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/02. Data/01. Input files/{model}/"
+    #load the input data - climate data files, global, with either irrigation or no-irrigation
+    folder=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/{model}/"
         
     ifile_IRR=f"{model}.IRR.000.1985_2014_selparam_monthly_{mode_suff}.nc"
     ifile_NOI=f"{model}.NOI.000.1985_2014_selparam_monthly_{mode_suff}.nc"
     
     
-    
-
-    # shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/02. Data/01. Input files/Shapefile/glac_inv/glac_inv_all_lowres.shp'
     
     """ Part 0 - Create variability for differnt timescales in: amount of subplots, time-averaging used """
     #adjust figure sizes towards type of plot
@@ -81,7 +78,6 @@ def P_T_overview_plot(model,var, timeframe, mode, diftype, inputplot, plotsave):
         ifile_IRR = ifile_IRR.rename({'time_counter': 'time'})
         ifile_NOI = ifile_NOI.rename({'time_counter': 'time'})
    
-
         
     if var=="Precipitation":
 
@@ -106,12 +102,13 @@ def P_T_overview_plot(model,var, timeframe, mode, diftype, inputplot, plotsave):
         baseline=ifile_NOI.tas
         irrigation=ifile_IRR.tas
         
+    #create a subset of the location we're interested in 
+    if scale == "local":
+        baseline = baseline.where((baseline.lon >= 60) & (baseline.lon <= 109) & (baseline.lat >= 22) & (baseline.lat <= 52), drop=True) 
+        irrigation = irrigation.where((irrigation.lon >= 60) & (irrigation.lon <= 109) & (irrigation.lat >= 22) & (irrigation.lat <= 52), drop=True) 
     
-    baseline = baseline.where((baseline.lon >= 60) & (baseline.lon <= 109) & (baseline.lat >= 22) & (baseline.lat <= 52), drop=True) 
     baseline["time"] = baseline.time.astype("datetime64[ns]")
     # baseline = baseline.groupby(time_averaging).mean()
-    
-    irrigation = irrigation.where((irrigation.lon >= 60) & (irrigation.lon <= 109) & (irrigation.lat >= 22) & (irrigation.lat <= 52), drop=True) 
     irrigation["time"] = irrigation.time.astype("datetime64[ns]")
     # irrigation = irrigation.groupby(time_averaging).mean()
     
@@ -150,7 +147,12 @@ def P_T_overview_plot(model,var, timeframe, mode, diftype, inputplot, plotsave):
     if var =="Temperature" or diftype=='abs':
         diff = irrigation-baseline 
         
-    diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (diff.lat >= 22) & (diff.lat <= 52), drop=True)
+    #save difference files:
+    ofile_diff=f"{model}.DIF.000.1985_2014_selparam_monthly_{mode_suff}.nc"
+    
+
+    if scale=="local":
+        diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (diff.lat >= 22) & (diff.lat <= 52), drop=True)
 
     #create local minima/maxima, for axis of plot
     local_min_diff = diff.quantile(0.25)
@@ -194,12 +196,8 @@ def P_T_overview_plot(model,var, timeframe, mode, diftype, inputplot, plotsave):
 
 
     """ Part 2 - Shapefile outline for Karakoram Area to be included"""
-    #path to alternative shapefile
-    # shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/02. Data/01. Input files/Shapefile/glac_inv/glac_inv_all_lowres.shp'
-    
-    # shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/02. Data/01. Input files/Shapefile/Liu_2022/Pan_Tibetan_shape.shp'
-    # shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/02. Data/01. Input files/Shapefile/QGIS/Karakoram_Study_Area.shp'
-    shapefile_path ='/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/02. Data/01. Input files/Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
+    #path to  shapefile
+    shapefile_path ='/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
     shp = gpd.read_file(shapefile_path)
     target_crs='EPSG:4326'
     shp = shp.to_crs(target_crs)
@@ -385,7 +383,7 @@ def P_T_overview_plot(model,var, timeframe, mode, diftype, inputplot, plotsave):
 #                     diftypes=['abs']
                 
 #                 for dif in diftypes:
-#                     P_T_overview_plot(model, var, timeframe, mode, dif, 'off', 'save')
-P_T_overview_plot("CNRM", "Precipitation", "annual", "dif", "abs", 'off', 'nosave')
+#                     P_T_overview_plot(model, scale, var, timeframe, mode, dif, 'off', 'save')
+P_T_overview_plot("CNRM", "local", "Precipitation", "seasonal", "dif", "rel", 'off', 'nosave')
 
                 

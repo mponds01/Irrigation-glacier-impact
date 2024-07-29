@@ -22,8 +22,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import cartopy.crs as ccrs
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import os 
-#%% Provide functions to process and plot climate data
-
+#%% Cell 1: Process the climate data - stored as netCDF output
 
 def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
     
@@ -42,13 +41,12 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
 
     """ Part 0 - Load and open the climate data"""
     #paths to climate data
-    folder_in=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/{model}/"  
+    folder_in=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/01. Climate data/{model}/"  
     ifile_IRR=f"{model}.IRR.00{member}.1985_2014_selparam_monthly_{mode_suff}.nc"
     ifile_NOI=f"{model}.NOI.00{member}.1985_2014_selparam_monthly_{mode_suff}.nc"
     #first for each variable load the data, for precipitation this consists of Snow & Rain from atmosphere, converted from [mm/day]
     ifile_IRR =xr.open_dataset(folder_in+ifile_IRR)
     ifile_NOI =xr.open_dataset(folder_in+ifile_NOI)
-    
     
     """Part 1 - Correct the data"""
     #only for model IPSL-CM6 change dimensions of time (rename), as not possible in bash
@@ -68,6 +66,12 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
             # if model =="CESM2":
             irrigation=irrigation*30
             baseline=baseline*30
+            #rename the variables in the dataset
+            if irrigation.name==None:
+                irrigation.name = 'pr'
+            if baseline.name==None:
+                baseline.name = 'pr'
+
         else:
             baseline=baseline_R
             irrigation=irrigation_R
@@ -117,7 +121,7 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
         diff = irrigation-baseline 
     if var =="Temperature": 
         var_suffix="TEMP"
-    
+
 
     #save difference and processed input files:
     base_folder_out=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/01. Processed input data/{var}/{timeframe}/{model}/{member}"  
@@ -135,10 +139,8 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
     baseline.to_netcdf(ofile_noi)
     return
 
-#%% Define code for plotting the data
-
-
-    
+#%% Cell 2: Plotting the climate data - only for perturbations
+   
 def plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plotsave):    
     """ Part 0 - Set plotting parameters"""
     #adjust figure sizes towards type of plot
@@ -261,7 +263,7 @@ def plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plotsave
     
     """ Part 2 - Shapefile outline for Karakoram Area to be included"""
     #path to  shapefile
-    shapefile_path ='/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
+    shapefile_path ='/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
     shp = gpd.read_file(shapefile_path)
     target_crs='EPSG:4326'
     shp = shp.to_crs(target_crs)
@@ -436,9 +438,10 @@ def plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plotsave
     plt.show()
     return
 
-#%% Adapted code for plotting input data
+#%% Cell 3: Plotting the climate data - for perturbations and input data 
 
 def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, diftype, plotsave):    
+    
     """ Part 0 - Set plotting parameters"""
     #adjust figure sizes towards type of plot
     if scale=="Global":
@@ -496,7 +499,7 @@ def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, di
     #Provide cbar ranges and colors for plots for different variables, modes (dif/std) and difference types (abs/rel)    
     if var=="Precipitation":
         var_suffix="PR"
-        if plottype!="DIF":
+        if plotvar!="DIF":
             vmin=0
             vmax=150
         if mode =='dif' and diftype=='rel':
@@ -569,7 +572,7 @@ def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, di
     
     """ Part 2 - Shapefile outline for Karakoram Area to be included"""
     #path to  shapefile
-    shapefile_path ='/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
+    shapefile_path ='/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
     shp = gpd.read_file(shapefile_path)
     target_crs='EPSG:4326'
     shp = shp.to_crs(target_crs)
@@ -745,41 +748,57 @@ def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, di
         if plotvar=="DIF":
             # os.makedirs(f"o_folder_base/{scale}/{timeframe}/{var}/", exist_ok=True)
             os.makedirs(f"{o_folder_diff}/", exist_ok=True)
-            o_file_name=f"{o_folder_diff}/{model}.{var_suffix}.DIF.00{member}.1985_2014_{timeframe}_{mode_suff}_{diftype}.png"
+            o_file_name=f"{o_folder_diff}/{model}.{var_suffix}.{plotvar}.00{member}.1985_2014_{timeframe}_{mode_suff}_{diftype}.png"
             plt.savefig(o_file_name, bbox_inches='tight')
         else:
             os.makedirs(f"{o_folder_diff}/", exist_ok=True)
-            o_file_name=f"{o_folder_diff}/{model}.{var_suffix}.DIF.00{member}.1985_2014_{timeframe}_{mode_suff}_{diftype}.png"
+            o_file_name=f"{o_folder_diff}/{model}.{var_suffix}.{plotvar}.00{member}.1985_2014_{timeframe}_{mode_suff}_{diftype}.png"
             plt.savefig(o_file_name, bbox_inches='tight')
     plt.show()
     return
-
-
-#%% Cell 4: Run the functions for all different combinations to generate output datasets and plots
+#%% Cell 4: Run the data processing for all climate models, members etc.
 members=[1,3,4,6]
-for (m,model) in enumerate(["IPSL-CM6","E3SM","CESM2", "CNRM"]): 
+
+for (m,model) in enumerate(["IPSL-CM6","E3SM","CESM2","CNRM"]):
     for member in range(members[m]):
-        for scale in ["Local","Global"]:
-            for plotvar in ["IRR", "NOI","DIF"]:
-                for var in ["Temperature", "Precipitation"]:
-                    for timeframe in ["annual","seasonal","monthly"]:
-                        for mode in ['dif']:#, 'std']:
-                    
-                            if plotvar=="DIF" and var =="Precipitation" and mode=='dif':
-                                diftypes=['abs','rel']
-                            else:
-                                diftypes=['abs']
+            for var in ["Precipitation"]:#,"Temperature"]: 
+                for timeframe in ["annual","seasonal","monthly"]:
+                    for mode in ['dif']:#, 'std']:
+                        if var =="Precipitation" and mode=='dif':
+                            diftypes=['abs','rel']
+                        else:
+                            diftypes=['abs']
+                        for dif in diftypes:
+                            print(model, member, timeframe, dif)
+                            process_P_T_perturbations(model, member, var, timeframe, mode, dif) 
                             
-                            for dif in diftypes:
-                                print(plotvar, model, member, var, scale, dif)
-                                # process_P_T_perturbations(model, member, var, timeframe, mode, dif) 
-                                # plot_P_T_perturbations(model, scale, var, timeframe, mode, dif,"save")
-                                plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, dif,"save")
-
+#%% Cell 5: Run the functions for all different combinations to generate output datasets and plots
+members=[4]#,6]#1,3,
+for (m,model) in enumerate(["CESM2"]):#, "CNRM"]): #"IPSL-CM6","E3SM",
+    for member in range(members[m]):
+        print(member)
+        if model == "CESM2" and member<2:
+                print("skipping")
+        else:
+            for scale in ["Local","Global"]:
+                for plotvar in ["IRR", "NOI"]:#,"DIF"]:
+                    for var in ["Temperature", "Precipitation"]:
+                        for timeframe in ["annual","seasonal","monthly"]:
+                            for mode in ['dif']:#, 'std']:
                         
-#%% Cell 5: Test run the perturbation plots:
-    
-#required input: plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plottype =input/output plot, plotsave):
-# plot_P_T_perturbations("CESM2", "Local", "Precipitation", "seasonal", "dif", "rel", "output","save")
+                                if plotvar=="DIF" and var =="Precipitation" and mode=='dif':
+                                    diftypes=['abs','rel']
+                                else:
+                                    diftypes=['abs']
+                                
+                                for dif in diftypes:
+                                    # plot_P_T_perturbations(model, scale, var, timeframe, mode, dif,"save")
+                                    # plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, dif,"save")
 
-                
+
+
+
+
+
+
+

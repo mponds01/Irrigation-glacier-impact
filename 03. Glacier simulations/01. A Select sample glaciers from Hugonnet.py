@@ -262,6 +262,7 @@ rgi_subset_df = pd.read_csv(f'{folder_path}/03. Glacier Subset/Glacier_subset_in
 rgi_subset_ds = xr.Dataset.from_dataframe(rgi_subset_df)
 print(rgi_subset_ds)
 #%% Cell 4d: Plot the selected glaciers on a map
+
 shapefile_path ='/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/02. Data/01. Input files/Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
 shp = gpd.read_file(shapefile_path)
 target_crs='EPSG:4326'

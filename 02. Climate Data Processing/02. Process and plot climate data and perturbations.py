@@ -129,17 +129,79 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
     os.makedirs(diff_folder_out, exist_ok=True)
     os.makedirs(base_folder_out, exist_ok=True)
 
-
-    ofile_diff=f"{diff_folder_out}/{model}.{var_suffix}.DIF.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
-    ofile_irr=f"{base_folder_out}/{model}.{var_suffix}.IRR.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
-    ofile_noi=f"{base_folder_out}/{model}.{var_suffix}.NOI.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
+    ofile_diff=f"{diff_folder_out}/{model}.{var_suffix}.DIF.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+    ofile_irr=f"{base_folder_out}/{model}.{var_suffix}.IRR.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+    ofile_noi=f"{base_folder_out}/{model}.{var_suffix}.NOI.00{member}.1985_2014_{timeframe}_{diftype}.nc"
 
     diff.to_netcdf(ofile_diff)
     irrigation.to_netcdf(ofile_irr)
     baseline.to_netcdf(ofile_noi)
     return
 
-#%% Cell 2: Plotting the climate data - only for perturbations
+
+#%% Cell 2: Process baseline
+                
+def process_P_T_baseline(model, member, var, timeframe, diftype):
+
+    var == "precipitation"        
+    if timeframe =='seasonal':
+        time_averaging = "QS-DEC"
+    if timeframe =='annual':
+        time_averaging = 'YE'
+    
+    """ Part 0 - Load and open the climate data"""
+    #paths to climate data
+    
+    w5e5_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/01. Climate data/W5E5/cluster.klima.uni-bremen.de/~oggm/climate/gswp3-w5e5/unflattened/2023.2/monthly'
+    pr_path=f'{w5e5_path}/gswp3-w5e5_obsclim_pr_global_monthly_1901_2019.nc'
+    tas_path=f'{w5e5_path}/gswp3-w5e5_obsclim_tas_global_monthly_1901_2019.nc'
+    
+    if var=="Precipitation":
+        ifile = xr.open_dataset(pr_path)
+        var_suffix="PR"
+    else:
+        ifile = xr.open_dataset(tas_path)
+        var_suffix="TEMP"
+    
+    #select only the data for the relevant timeframe
+    # base_range = pd.date_range(start='1985-01-01', end='2014-12-31', freq='MS')
+    base_range = pd.date_range(start='1985-01-01', end='2014-12-31')
+    
+    # Use 'isel' method to filter by date range
+    baseline = ifile.sel(time=slice(base_range.min(), base_range.max()))
+    
+    """Part 1 - Correct the data"""
+    # Data is provided in Precipitation flux (kg/m2/s) on a monthly basis
+    
+    if var=="Precipitation":
+        baseline = baseline.pr*86400*30 #to go to monthly total flux   
+        
+    """Part 2 - Enable time averaging for the climate data (monthly, seasonal or annual)"""
+    
+    #reformat the time dimension of the data for resampling 
+    baseline["time"] = baseline.time.astype("datetime64[ns]")
+    
+    #calculate monthly averages (different from precipitation where calculate average monthly totals)
+    if timeframe != "monthly": 
+        if var =="Temperature":
+            baseline = baseline.resample(time=time_averaging).mean(dim='time')       
+        #different approach for precipitation as we are interested in the total amount of precipitation on a seasonal and annual basis
+        #the input comes from monthly totals, so we don't need to sum over monthly data anymore
+        if var =="Precipitation":
+            baseline = baseline.resample(time=time_averaging).sum(dim='time')
+    print(baseline.time)
+    #save difference and processed input files:
+    base_folder_out=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/01. Processed input data/{var}/{timeframe}/{model}/{member}"  
+    os.makedirs(base_folder_out, exist_ok=True)
+    
+    
+    ofile_baseline=f"{base_folder_out}/{model}.{var_suffix}.BASE.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+    
+    baseline.to_netcdf(ofile_baseline)
+    return
+
+
+#%% Cell 3: Plotting the climate data - only for perturbations
    
 def plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plotsave):    
     """ Part 0 - Set plotting parameters"""
@@ -245,10 +307,9 @@ def plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plotsave
     base_folder_in=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/01. Processed input data/{var}/{timeframe}/{model}/{member}"  
     diff_folder_in=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/02. Perturbations/{var}/{timeframe}/{model}/{member}"  
     
-    
-    ifile_diff=f"{diff_folder_in}/{model}.{var_suffix}.DIF.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
-    ifile_irr=f"{base_folder_in}/{model}.{var_suffix}.IRR.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
-    ifile_noi=f"{base_folder_in}/{model}.{var_suffix}.NOI.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
+    ifile_diff=f"{diff_folder_in}/{model}.{var_suffix}.DIF.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+    ifile_irr=f"{base_folder_in}/{model}.{var_suffix}.IRR.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+    ifile_noi=f"{base_folder_in}/{model}.{var_suffix}.NOI.00{member}.1985_2014_{timeframe}_{diftype}.nc"
     
     diff = xr.open_dataset(ifile_diff)
     irrigation =  xr.open_dataarray(ifile_irr)
@@ -433,12 +494,12 @@ def plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plotsave
     if plotsave =='save': 
         # os.makedirs(f"o_folder_base/{scale}/{timeframe}/{var}/", exist_ok=True)
         os.makedirs(f"{o_folder_diff}/", exist_ok=True)
-        o_file_name=f"{o_folder_diff}/{model}.{var_suffix}.DIF.00{member}.1985_2014_{timeframe}_{mode_suff}_{diftype}.png"
+        o_file_name=f"{o_folder_diff}/{model}.{var_suffix}.DIF.00{member}.1985_2014_{timeframe}_{diftype}.png"
         plt.savefig(o_file_name, bbox_inches='tight')
     plt.show()
     return
 
-#%% Cell 3: Plotting the climate data - for perturbations and input data 
+#%% Cell 4: Plotting the climate data - for perturbations and input data 
 
 def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, diftype, plotsave):    
     
@@ -547,17 +608,16 @@ def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, di
     
     """ Part 1: Load the input data (derived in function process_P_T_perturbations) """
     
-    
     base_folder_in=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/01. Processed input data/{var}/{timeframe}/{model}/{member}"  
     diff_folder_in=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/02. Perturbations/{var}/{timeframe}/{model}/{member}"  
     
     if plotvar=="DIF": 
-        ifile_diff=f"{diff_folder_in}/{model}.{var_suffix}.{plotvar}.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
+        ifile_diff=f"{diff_folder_in}/{model}.{var_suffix}.{plotvar}.00{member}.1985_2014_{timeframe}_{diftype}.nc"
     else:
-        ifile_diff=f"{base_folder_in}/{model}.{var_suffix}.{plotvar}.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
-    
-    # ifile_irr=f"{base_folder_in}/{model}.{var_suffix}.IRR.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
-    # ifile_noi=f"{base_folder_in}/{model}.{var_suffix}.NOI.00{member}.1985_2014_selparam_{timeframe}_{mode_suff}_{diftype}.nc"
+        ifile_diff=f"{base_folder_in}/{model}.{var_suffix}.{plotvar}.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+        
+    # ifile_irr=f"{base_folder_in}/{model}.{var_suffix}.IRR.00{member}.1985_2014_{timeframe}_{mode_suff}_{diftype}.nc"
+    # ifile_noi=f"{base_folder_in}/{model}.{var_suffix}.NOI.00{member}.1985_2014_{timeframe}_{mode_suff}_{diftype}.nc"
     
     diff = xr.open_dataset(ifile_diff)
     # irrigation =  xr.open_dataarray(ifile_irr)
@@ -756,12 +816,13 @@ def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, di
             plt.savefig(o_file_name, bbox_inches='tight')
     plt.show()
     return
-#%% Cell 4: Run the data processing for all climate models, members etc.
+
+#%% Cell 5: Run the perturbation processing for all climate models, members etc.
 members=[1,3,4,6]
 
 for (m,model) in enumerate(["IPSL-CM6","E3SM","CESM2","CNRM"]):
     for member in range(members[m]):
-            for var in ["Precipitation"]:#,"Temperature"]: 
+            for var in ["Precipitation","Temperature"]: 
                 for timeframe in ["annual","seasonal","monthly"]:
                     for mode in ['dif']:#, 'std']:
                         if var =="Precipitation" and mode=='dif':
@@ -772,28 +833,39 @@ for (m,model) in enumerate(["IPSL-CM6","E3SM","CESM2","CNRM"]):
                             print(model, member, timeframe, dif)
                             process_P_T_perturbations(model, member, var, timeframe, mode, dif) 
                             
+
+#%% Cell 6: Run the baseline processing 
+
+for model in ["W5E5"]:
+
+    for member in [0]:
+        for var in ["Precipitation", "Temperature"]:
+            for timeframe in ["annual", "seasonal", "monthly"]:
+                    for diftype in ['abs']:
+                        print(var, timeframe)
+                        process_P_T_baseline(model, member, var, timeframe, diftype)
+                        
+
 #%% Cell 5: Run the functions for all different combinations to generate output datasets and plots
-members=[4]#,6]#1,3,
-for (m,model) in enumerate(["CESM2"]):#, "CNRM"]): #"IPSL-CM6","E3SM",
+members=[1,3,4,6]
+
+for (m,model) in enumerate(["IPSL-CM6","E3SM","CESM2","CNRM"]):
     for member in range(members[m]):
         print(member)
-        if model == "CESM2" and member<2:
-                print("skipping")
-        else:
-            for scale in ["Local","Global"]:
-                for plotvar in ["IRR", "NOI"]:#,"DIF"]:
-                    for var in ["Temperature", "Precipitation"]:
-                        for timeframe in ["annual","seasonal","monthly"]:
-                            for mode in ['dif']:#, 'std']:
-                        
-                                if plotvar=="DIF" and var =="Precipitation" and mode=='dif':
-                                    diftypes=['abs','rel']
-                                else:
-                                    diftypes=['abs']
-                                
-                                for dif in diftypes:
-                                    # plot_P_T_perturbations(model, scale, var, timeframe, mode, dif,"save")
-                                    # plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, dif,"save")
+        for scale in ["Local","Global"]:
+            for plotvar in ["IRR", "NOI"]:#,"DIF"]:
+                for var in ["Temperature", "Precipitation"]:
+                    for timeframe in ["annual","seasonal","monthly"]:
+                        for mode in ['dif']:#, 'std']:
+                    
+                            if plotvar=="DIF" and var =="Precipitation" and mode=='dif':
+                                diftypes=['abs','rel']
+                            else:
+                                diftypes=['abs']
+                            
+                            for dif in diftypes:
+                                plot_P_T_perturbations(model, scale, var, timeframe, mode, dif,"save")
+                                plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, dif,"save")
 
 
 

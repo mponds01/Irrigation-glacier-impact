@@ -141,7 +141,7 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
 
 #%% Cell 2: Process baseline
                 
-def process_P_T_baseline(model, member, var, timeframe, diftype):
+def process_P_T_baseline(model, member, var, timeframe, diftype, y0):
 
     var == "precipitation"        
     if timeframe =='seasonal':
@@ -165,7 +165,8 @@ def process_P_T_baseline(model, member, var, timeframe, diftype):
     
     #select only the data for the relevant timeframe
     # base_range = pd.date_range(start='1985-01-01', end='2014-12-31', freq='MS')
-    base_range = pd.date_range(start='1985-01-01', end='2014-12-31')
+
+    base_range = pd.date_range(start=f'{y0}-01-01', end='2014-12-31')
     
     # Use 'isel' method to filter by date range
     baseline = ifile.sel(time=slice(base_range.min(), base_range.max()))
@@ -195,7 +196,7 @@ def process_P_T_baseline(model, member, var, timeframe, diftype):
     os.makedirs(base_folder_out, exist_ok=True)
     
     
-    ofile_baseline=f"{base_folder_out}/{model}.{var_suffix}.BASE.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+    ofile_baseline=f"{base_folder_out}/{model}.{var_suffix}.BASE.00{member}.{y0}_2014_{timeframe}_{diftype}.nc"
     
     baseline.to_netcdf(ofile_baseline)
     return
@@ -842,8 +843,9 @@ for model in ["W5E5"]:
         for var in ["Precipitation", "Temperature"]:
             for timeframe in ["annual", "seasonal", "monthly"]:
                     for diftype in ['abs']:
-                        print(var, timeframe)
-                        process_P_T_baseline(model, member, var, timeframe, diftype)
+                        for y0 in [1985,1901]:
+                            print(var, timeframe, y0)
+                            process_P_T_baseline(model, member, var, timeframe, diftype, y0)
                         
 
 #%% Cell 5: Run the functions for all different combinations to generate output datasets and plots

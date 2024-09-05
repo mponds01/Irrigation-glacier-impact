@@ -29,11 +29,16 @@ import time
 import logging
 import json
 
+#%%
+
+ds = xr.open_dataset("/Users/magaliponds/Downloads/orog_W5E5v2.0.nc")
+ds.orog.attrs
 
 #%% Provide modelling parameters
 
 folder_path='/Users/magaliponds/Documents/00. Programming'
 wd_path=f'{folder_path}/06. Modelled perturbation-glacier interactions/'
+wd_path_test=f'{folder_path}/07. check perturbation-glacier interactions/'
 
 y0_clim=1985
 ye_clim=2014
@@ -67,62 +72,9 @@ models = "W5E5","E3SM","CESM2","CNRM","IPSL-CM6"
 timeframe="monthly"
 
 
-#%% Plot temperatur and precipitation - against reference climate
-colors = {
-    "W5E5": ["#000000"],  # Black
-    "E3SM": ["#785EF0", "#8F7BF1", "#A6A8F2"],  # Darker to lighter shades of purple
-    "CESM2": ["#DC267F", "#E58A9E", "#F0A2B6", "#F7BCC4"],  # Darker to lighter shades of pink
-    "CNRM": ["#FE6100", "#FE7D33", "#FE9A66", "#FEB799", "#FECDB5", "#FEF1E1"],  # Darker to lighter shades of orange
-    "IPSL-CM6": ["#FFB000"]  # Dark purple to lighter shades
-}
+#%% Plot temperatur and precipitation - against prepro-5
 
-members=[3,4,6,1,1]
-models = ["E3SM","CESM2","CNRM","IPSL-CM6","W5E5"]
-markers=["o","x"]
-for v,var in enumerate(["prcp", "temp"]):
-    fig,axes=plt.subplots(3,3,figsize=(15,8))
-    for r, rgi_id in enumerate(rgi_ids):
-        row = r // axes.shape[1]
-        col = r % axes.shape[1]
-        
-
-        for m, model in enumerate(models):
-            if m==4:
-                for member in range(members[m]):
-                    #Create a sample-id tag to list model restuls
-                    sample_id= f"{model}.00{member}" #p
-                    # Why no valid volume file?? 
-                    opath = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historical_{}.nc'.format(sample_id))
-                
-                    # ds_diag_ext = pd.read_csv(opath)
-                    # ds_diag_ext = xr.Dataset.from_dataframe(ds_diag_ext)
-                    ds_diag_ext=xr.open_dataset(opath)
-                    # print(model, " ", ds_diag_ext.time)
-                    axes[row,col].scatter(ds_diag_ext["time"], ds_diag_ext[var], label=sample_id, marker=markers[v], color=colors[model][member])
-                    axes[row,col].set_title(rgi_id)
-                    if r == 3:
-                        axes[row,col].set_ylabel(ds_diag_ext[var].long_name+" ["+ds_diag_ext[var].units+"]")
-                    if r >= 6:
-                        axes[row, col].set_xlabel("Time [year]")
-                    # print(ds_diag_ext["time"])
-
-        opath_ref = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historical.nc')
-        # print("Reference", " ", ds_diag_ext.time)
-
-        ds_diag_ext_ref = xr.open_dataset(opath_ref)
-        ds_diag_ext_ref = ds_diag_ext_ref.sel(time=slice('1985-01-01', '2014-12-31'))
-        axes[row,col].scatter(ds_diag_ext_ref["time"], ds_diag_ext_ref[var], label="Reference data", marker=markers[v], color="red")
-    # Adjust the legend
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=5)
-    plt.tight_layout()
-    plt.show()
-    o_folder_data=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/00. Processed Climate/{var}/"
-    os.makedirs(f"{o_folder_data}/", exist_ok=True)
-    o_file_name=f"{o_folder_data}/{var}.1985_2014.{timeframe}.processed.climate.data.combined.png"
-    # plt.savefig(o_file_name, bbox_inches='tight')
-        
-#%% Plot temperatur and precipitation - processed climate input by model member, RGI
+  
 colors = {
     "W5E5": ["#000000"],#"#000000"],  # Black
     "E3SM": ["#785EF0", "#8F7BF1", "#A6A8F2"],  # Darker to lighter shades of purple
@@ -131,129 +83,251 @@ colors = {
     "IPSL-CM6": ["#FFB000"]  # Dark purple to lighter shades
 }
 
-members=[3,4,6,1,1]
+# members=[3,4,6,1,1]
+members=[1,1,1,1,1]
+
 models = ["E3SM","CESM2","CNRM","IPSL-CM6","W5E5"]
 markers=["o","x"]
 for v,var in enumerate(["prcp", "temp"]):
-    fig,axes=plt.subplots(3,3,figsize=(15,8))
+    fig,axes=plt.subplots(3,3,figsize=(22,8))
+    
+
     for r, rgi_id in enumerate(rgi_ids):
         row = r // axes.shape[1]
-        col = r % axes.shape[1]        
+        col = r % axes.shape[1]    
+        opath_base = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historical_W5E5.000_ext.nc')
+        ds_diag_base=xr.open_dataset(opath_base)
+        
+        opath_prepro = os.path.join(wd_path_test, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historical.nc')
+        ds_diag_prepro=xr.open_dataset(opath_prepro)
 
-        for m, model in enumerate(models):
-            for member in range(members[m]):
-                #Create a sample-id tag to list model restuls
-                sample_id= f"{model}.00{member}" #p
-                # Why no valid volume file?? 
-                opath = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historical_{}.nc'.format(sample_id))
-                # ds_diag_ext = pd.read_csv(opath)
-                # ds_diag_ext = xr.Dataset.from_dataframe(ds_diag_ext)
-                ds_diag_ext=xr.open_dataset(opath)
-                axes[row,col].scatter(ds_diag_ext["time"], ds_diag_ext[var], label=sample_id, marker=markers[v], color=colors[model][member])
-                axes[row,col].set_title(rgi_id)
-                if r == 3:
-                    axes[row,col].set_ylabel(ds_diag_ext[var].long_name+" ["+ds_diag_ext[var].units+"]")
-                if r >= 6:
-                    axes[row, col].set_xlabel("Time [year]")
-                # print(ds_diag_ext["time"])
+
+        
+        ds_diag_dif=ds_diag_prepro-ds_diag_base
+        axes[row,col].scatter(ds_diag_prepro["time"], ds_diag_prepro[var], label='W5E5 prepro L5',  color='grey', linestyle='dashed')#marker=markers[v],
+        axes[row,col].scatter(ds_diag_base["time"], ds_diag_base[var], label='W5E5 prepro 3',  color='darkgrey', linestyle='dashed')#marker=markers[v],
+        axes[row,col].set_title(rgi_id)
+        if r == 3:
+            axes[row,col].set_ylabel(ds_diag_base[var].long_name+" ["+ds_diag_base[var].units+"]")
+        if r >= 6:
+            axes[row, col].set_xlabel("Time [year]")
+        # print(ds_diag_ext["time"])
+        
+        # Create secondary y-axis
+        axes2 = axes[row,col].twinx()
+        axes2.plot(ds_diag_dif["time"], ds_diag_dif[var], label='Difference L5-L3',  color='red')#, linestyle='dashed')#marker=markers[v],
+        axes2.set_ylabel('Difference L3-L5')
+        axes2.set_ylim(-1,1)
+                    
 
 
     # Adjust the legend
     handles, labels = axes[0, 0].get_legend_handles_labels()
+    handles2, labels2 = axes2.get_legend_handles_labels()
+    handles += handles2
+    labels += labels2
     fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=5)
     plt.tight_layout()
     plt.show()
     o_folder_data=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/00. Processed Climate/{var}/"
     os.makedirs(f"{o_folder_data}/", exist_ok=True)
-    o_file_name=f"{o_folder_data}/{var}.1985_2014.{timeframe}.processed.climate.data.combined.png"
-    # plt.savefig(o_file_name, bbox_inches='tight')
-        
-#%% Plot simulated volume for each modelxmember combination
+    o_file_name=f"{o_folder_data}/{var}.1985_2014.{timeframe}.processed.climate.data.prepro.difference.png"
+    plt.savefig(o_file_name, bbox_inches='tight')
+    
 
-# Define the members and models
+
+#%% Plot temperatur and precipitation - against prepro-5
+colors = {
+    "W5E5": ["#000000"],#"#000000"],  # Black
+    "E3SM": ["#785EF0", "#8F7BF1", "#A6A8F2"],  # Darker to lighter shades of purple
+    "CESM2": ["#DC267F", "#E58A9E", "#F0A2B6", "#F7BCC4"],  # Darker to lighter shades of pink
+    "CNRM": ["#FE6100", "#FE7D33", "#FE9A66", "#FEB799", "#FECDB5", "#FEF1E1"],  # Darker to lighter shades of orange
+    "IPSL-CM6": ["#FFB000"]  # Dark purple to lighter shades
+}
+
+# members=[3,4,6,1,1]
+members=[1,1,1,1,1]
+
+models = ["E3SM","CESM2","CNRM","IPSL-CM6","W5E5"]
+markers=["o","x"]
+colors=['lightblue', 'pink']
+linecolors=['blue', 'red']
+
+for v,var in enumerate(["prcp", "temp"]):
+    fig,axes=plt.subplots(3,3,figsize=(15,15))
+    # fig_L3,axes_L3=plt.subplots(3,3,figsize=(15,15))
+    
+
+    for r, rgi_id in enumerate(rgi_ids):
+        row = r // axes.shape[1]
+        col = r % axes.shape[1]    
+        opath_base_custom = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historical_W5E5.000_ext.nc')
+        opath_base_L3 = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historicalL3.nc')
+        ds_diag_custom=xr.open_dataset(opath_base_custom)
+        ds_diag_L3=xr.open_dataset(opath_base_L3)
+
+        
+        opath_prepro = os.path.join(wd_path_test, "per_glacier", rgi_id[:-6], rgi_id[:-3],rgi_id, 'climate_historical.nc')
+        ds_diag_prepro=xr.open_dataset(opath_prepro)
+        ds_diag_prepro_L3=ds_diag_prepro.where(ds_diag_prepro.time >= np.datetime64('1979'), drop=True)
+
+        # x_smooth_L3 = np.linspace(ds_diag_prepro_L3[var].min(), ds_diag_prepro_L3[var].max(), 500)
+
+        # coefficients_L3 = np.polyfit(ds_diag_prepro_L3[var], ds_diag_L3[var], 1)
+        # trendline_L3 = np.poly1d(coefficients_L3)
+        
+        # axes_L3[row,col].scatter( ds_diag_prepro_L3[var], ds_diag_L3[var], color='pink', marker='+', label="Monthly L3-L5 data")#, linestyle='dashed')#marker=markers[v],
+        # axes_L3[row,col].plot( x_smooth_L3, trendline_L3(x_smooth_L3),  color='red', linestyle='dashed', label="1:1 prepro line")#marker=markers[v],
+        # axes_L3[row,col].plot( ds_diag_prepro_L3[var], ds_diag_prepro_L3[var],  color='black', linestyle='dashed', label="1:1 prepro line")#marker=markers[v],
+        # axes_L3[row,col].set_title(rgi_id)
+        # axes_L3[row,col].axis('equal')
+
+        
+        # if r in [3]:
+        #     axes_L3[row,col].set_ylabel(f"{ds_diag_L3[var].long_name} in {ds_diag_L3[var].units} - prepro L3")
+        # if r >= 6:
+        #     axes_L3[row, col].set_xlabel(f"{ds_diag_prepro[var].long_name} in {ds_diag_prepro[var].units} - prepro L5")
+        # # print(ds_diag_ext["time"])
+        
+        
+        ds_diag_prepro= ds_diag_prepro.where(ds_diag_prepro.time< np.datetime64('2015'), drop=True)
+        
+        # Fit a linear trend line (1st-degree polynomial)
+        coefficients = np.polyfit(ds_diag_prepro[var], ds_diag_custom[var], 1)
+        trendline = np.poly1d(coefficients)
+        x_smooth = np.linspace(ds_diag_prepro[var].min(), ds_diag_prepro[var].max(), 500)
+
+        
+        axes[row,col].scatter( ds_diag_prepro[var], ds_diag_custom[var], color=colors[v], marker='+', label="Monthly L5-custom data")#, linestyle='dashed')#marker=markers[v],
+        axes[row,col].plot( ds_diag_prepro[var], ds_diag_prepro[var],  color='black', linestyle='dashed', label="1:1 prepro line")#marker=markers[v],
+        axes[row,col].plot( x_smooth, trendline(x_smooth),  color=linecolors[v], linestyle='dashed', label='Fitted data line')#marker=markers[v],
+        axes[row,col].set_title(rgi_id)
+        axes[row,col].axis('equal')
+
+        
+        if r in [3]:
+            axes[row,col].set_ylabel(f"{ds_diag_L3[var].long_name} in {ds_diag_L3[var].units} - custom processing")
+        if r >= 6:
+            axes[row, col].set_xlabel(f"{ds_diag_prepro[var].long_name} in {ds_diag_prepro[var].units} - prepro L5")
+            
+        # print(ds_diag_ext["time"])
+        
+        
+    
+
+    # Adjust the legend
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.02), ncol=5)
+
+    plt.tight_layout()
+    plt.show()
+    
+    # handles2, labels2 = axes_L3[0, 0].get_legend_handles_labels()
+    # fig_L3.legend(handles2, labels2, loc='lower center', bbox_to_anchor=(0.5, 0), ncol=5)
+
+    plt.tight_layout()
+    plt.show()
+    
+    # o_folder_data=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/00. Processed Climate/{var}/"
+    # os.makedirs(f"{o_folder_data}/", exist_ok=True)
+    # o_file_name=f"{o_folder_data}/{var}.1985_2014.{timeframe}.processed.climate.data.prepro.compared.png"
+    # plt.savefig(o_file_name, bbox_inches='tight')
+    
+  
+    
+#%% Plot volume and area for each sample_id
 
 def plot_volume_area_evolution_over_time_combined(averaged):
-    members = [3,4, 6, 1,1]
-    # members=[1,1,1,1,1,]
+    timeframe ="monthly"
+    members = [3, 4, 6, 1, 1]
     models = ["E3SM", "CESM2", "CNRM", "IPSL-CM6", "W5E5"]
-    variables =["volume_m3","area_m2"]
+    variables = [ "volume", "area"]#"volume",
+    factors = [10**-9, 10**-6]
 
-    variable_names =["Volume","Area"]
-    variable_axes =["Volume [m$^3$]","Area [m$^2$]"]
-    
-    # Define the colors for each model's members
+    variable_names = ["Volume", "Area"]
+    variable_axes = ["Volume [km$^3$]", "Area [km$^2$]"]
+
     colors = {
-        "W5E5": ["#000000"],  # Black
-        "E3SM": ["#785EF0", "#8F7BF1", "#A6A8F2"],  # Darker to lighter shades of purple
-        "CESM2": ["#DC267F", "#E58A9E", "#F0A2B6", "#F7BCC4"],  # Darker to lighter shades of pink
-        "CNRM": ["#FE6100", "#FE7D33", "#FE9A66", "#FEB799", "#FECDB5", "#FEF1E1"],  # Darker to lighter shades of orange
-        "IPSL-CM6": ["#FFB000"]  # Dark purple to lighter shades
+        "W5E5": ["#000000"],
+        
+        "E3SM": ["#785EF0", "#8F7BF1", "#A6A8F2"],
+        "CESM2": ["#DC267F", "#E58A9E", "#F0A2B6", "#F7BCC4"],
+        "CNRM": ["#FE6100", "#FE7D33", "#FE9A66", "#FEB799", "#FECDB5", "#FEF1E1"],
+        "IPSL-CM6": ["#FFB000"]
     }
-    
-    # Create the figure and axes
-    
-    
-    for v,var in enumerate(variables):
-        fig, axes = plt.subplots(3,3, figsize=(15, 8))
-        for r, rgi_id in enumerate(rgi_ids):
-            row = r // axes.shape[1]
-            col = r % axes.shape[1]
-            axes[row, col].set_title(rgi_id)
 
-        
-            if r == 0 or r == 3 or r == 6:
-                axes[row, col].set_ylabel(variable_axes[v])
-            if r >= 6:
-                axes[row, col].set_xlabel("Time [year]")
-        
-            for m, model in enumerate(models):
+    for v, var in enumerate(variables):
+        fig, axes = plt.subplots(3, 3, figsize=(15, 8))
+        axes = axes.flatten()  # Flatten the axes array to simplify indexing
+
+        for m, model in enumerate(models):
+            if averaged==False:
+                members=members
+            else:
+                members=[1,1,1,1,1]
                 
-                for i in range(members[m]):
-                    # Create a sample-id tag to list model results
-                    sample_id = f"{model}.00{i}" 
-                    # Define the output path
+            for i in range(members[m]):
+                sample_id = f"{model}.00{i}"
+                opath = os.path.join(sum_dir, f'climate_run_output_{sample_id}.nc')
+                ds_diag_ext = xr.open_dataset(opath)
+                
+                for r, rgi_id in enumerate(rgi_ids):
+                    ax = axes[r]  # Select the correct subplot for the current rgi_id
+                    ax.set_title(rgi_id)
 
-                    opath = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3], rgi_id, 'model_diagnostics_{}_output_climate_run.nc'.format(sample_id))
-                    
-                    # Load the dataset
-                    ds_diag_ext = xr.open_dataset(opath)
+                    ds_filtered = ds_diag_ext.where(ds_diag_ext.rgi_id == rgi_id, drop=True)
 
-                    # Plot the data with the appropriate color
-                    
-                    
-                    if m==4:
-                        axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[var], label=sample_id, color=colors[model][i], linewidth=1)
-                        # axes[row, col].plot(ds_diag_ext_test["time"], ds_diag_ext_test[var], label="historical reference", color=colors[model][i], linewidth=2)
-                    elif i==0:
-                        axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[var], label=sample_id, color=colors[model][i], linewidth=3, alpha=1)
+                    if r == 0 or r == 3 or r == 6:
+                        ax.set_ylabel(variable_axes[v])
+                    if r >= 6:
+                        ax.set_xlabel("Time [year]")
+
+                    if m == 4:
+                        ax.plot(ds_filtered["time"], ds_filtered[var] * factors[v], label=sample_id, color=colors[model][i], linewidth=1)
+                    elif i == 0:
+                        ax.plot(ds_filtered["time"], ds_filtered[var] * factors[v], label=sample_id, color=colors[model][i], linewidth=3, alpha=1)
                     elif averaged==False:
-                        axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[var], label=sample_id, color=colors[model][i], linewidth=3, linestyle="dotted")
+                        ax.plot(ds_filtered["time"], ds_filtered[var] * factors[v], label=sample_id, color=colors[model][i], linewidth=3, linestyle="dotted")
+                    
+
+                    if model == "W5E5":
+                        wd_path_test = f'{folder_path}/07. check perturbation-glacier interactions/'
+                        opath_2 = os.path.join(wd_path_test, "summary", "spinup_historical_control_run.nc") #Plot the file from preprocessing level 5
+                        ds_diag_ext_test = xr.open_dataset(opath_2)
+                        ds_diag_ext_test = ds_diag_ext_test.where((ds_diag_ext_test['time'] >= 1985) & (ds_diag_ext_test['time'] < 2014))
+                        ds_diag_ext_test = ds_diag_ext_test.where(ds_diag_ext_test.rgi_id == rgi_id, drop=True)
+                        ax.plot(ds_diag_ext_test["time"], ds_diag_ext_test[var] * factors[v], label="W5E5.000 pre-pro 5", color="black", linewidth=2, linestyle="dashed")
                         
-            if model=="W5E5":
-                wd_path_test=f'{folder_path}/07. check perturbation-glacier interactions/'
-                opath_2 = os.path.join(wd_path_test, "per_glacier", rgi_id[:-6], rgi_id[:-3], rgi_id, 'model_diagnostics_spinup_historical.nc')
-                ds_diag_ext_test = xr.open_dataset(opath_2)
-                ds_diag_ext_test = ds_diag_ext_test.where((ds_diag_ext_test['time'] >= 1985) & (ds_diag_ext_test['time'] < 2014))
-                axes[row, col].plot(ds_diag_ext_test["time"], ds_diag_ext_test[var], label="W5E5.000 pre-pro 5", color="black", linewidth=2, linestyle="dotted")
-                
+                    
+                        # opath_3 = os.path.join(wd_path, "summary", "spinup_historical_run_output_before_W5E5.000.nc")
+                        # ds_diag_ext_test2 = xr.open_dataset(opath_3)
+                        # ds_diag_ext_test2 = ds_diag_ext_test2.where((ds_diag_ext_test2['time'] >= 1985) & (ds_diag_ext_test2['time'] < 2014))
+                        # ds_diag_ext_test2 = ds_diag_ext_test2.where(ds_diag_ext_test2.rgi_id == rgi_id, drop=True)
+                        # ax.plot(ds_diag_ext_test2["time"], ds_diag_ext_test2[var] * factors[v], label="W5E5.000 pre-pro 3 before dyn spinup", color="blue", linewidth=2, linestyle="dotted")
+                        
+                        opath_4 = os.path.join(wd_path, "summary", "spinup_historical_run_output_after_W5E5.000.nc")
+                        ds_diag_ext_test4 = xr.open_dataset(opath_4)
+                        ds_diag_ext_test4 = ds_diag_ext_test4.where((ds_diag_ext_test4['time'] >= 1985) & (ds_diag_ext_test4['time'] < 2014))
+                        ds_diag_ext_test4 = ds_diag_ext_test4.where(ds_diag_ext_test4.rgi_id == rgi_id, drop=True)
+                        ax.plot(ds_diag_ext_test4["time"], ds_diag_ext_test4[var] * factors[v], label="W5E5.000 pre-pro 3 after dyn spinup", color="red", linestyle=":")
+
+            axes[r].set_title(rgi_id)
+
         # Adjust the legend
-        handles, labels = axes[0, 0].get_legend_handles_labels()
+        handles, labels = axes[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=5)
         plt.tight_layout()
-        
-        if averaged==True:
-            suffix="member.avg"
-        else:
-            suffix="all.members"
-        
-        o_folder_data=f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/0{v+1}. {variable_names[v]}/00. Combined"
-        # print(o_folder_data)
-        os.makedirs(f"{o_folder_data}/", exist_ok=True)
-        o_file_name=f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.combined.{suffix}.png"
+
+        suffix = "member.avg" if averaged else "all.members"
+        o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/0{v + 1}. {variable_names[v]}/00. Combined"
+        os.makedirs(o_folder_data, exist_ok=True)
+        o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.combined.{suffix}.png"
         plt.savefig(o_file_name, bbox_inches='tight')
+
     return
+
+# Call the function with appropriate parameters
 plot_volume_area_evolution_over_time_combined(True)
-# plot_volume_area_evolution_over_time_combined(False)
 
 #%% Same code but now per model
 
@@ -327,7 +401,14 @@ def plot_volume_area_evolution_over_time_by_model():
 plot_volume_area_evolution_over_time_by_model()  
  
 
-#%%  Cell 12: Plot MB comparison for geodetic vs modelle baselined 
+#%%  Cell 12: Test
+
+for r, rgi_id in enumerate(rgi_ids):
+    if r==0:
+        opath = os.path.join(wd_path, "per_glacier", rgi_id[:-6], rgi_id[:-3], rgi_id, 'model_geometry_dynamic_spinup.nc')
+        ds= xr.open_dataset(opath)
+        print(ds.time.values)
+
 
 #%% Plot simulated volume for each modelxmember combination
 
@@ -373,65 +454,74 @@ def plot_mass_balance_evolution_over_time_combined(averaged):
         axes[row,col].fill_between([2000, 2020], [_mb-_err, _mb-_err], [_mb+_err, _mb+_err], alpha=0.5, color='gray')
         axes[row,col].plot([2000, 2020], [_mb, _mb], color='gray', label='Hugonnet 2000-2010')
 
-        opath_test = os.path.join(sum_dir, 'fixed_geometry_mass_balance_climate_test.csv')
+        opath_test = os.path.join(wd_path_test, 'summary', 'spinup_historical_mb_control_run.csv')
+        
         ds_diag_ext_test = pd.read_csv(opath_test)
         ds_diag_ext_test = xr.Dataset.from_dataframe(ds_diag_ext_test)    
         ds_diag_ext_test = ds_diag_ext_test.rename({'Unnamed: 0': "time"})
         ds_diag_ext_test = ds_diag_ext_test.where((ds_diag_ext_test['time'] >= 1985) & (ds_diag_ext_test['time'] < 2014))
-
-        
         axes[row, col].plot(ds_diag_ext_test["time"], ds_diag_ext_test[rgi_id], label="W5E5 OGGM pre-pro 5", color="black", linewidth=2, linestyle="dotted")
 
+        opath_test2 = os.path.join(wd_path, 'summary', 'historical_run_massbalance_before_output.csv')
+
+        ds_diag_ext_test2 = pd.read_csv(opath_test2)
+        ds_diag_ext_test2 = xr.Dataset.from_dataframe(ds_diag_ext_test2)    
+        ds_diag_ext_test2 = ds_diag_ext_test2.rename({'Unnamed: 0': "time"})
+        ds_diag_ext_test2 = ds_diag_ext_test2.where((ds_diag_ext_test2['time'] >= 1985) & (ds_diag_ext_test2['time'] < 2014))
+        axes[row, col].plot(ds_diag_ext_test2["time"], ds_diag_ext_test2[rgi_id], label="before spinup", color="green", linewidth=2, linestyle="dotted")
+        print(ds_diag_ext_test2)
         
-        for m, model in enumerate(models):
-            for i in range(members[m]):
-                # Create a sample-id tag to list model results
-                sample_id = f"{model}.00{i}" 
-                # Define the output path
-                opath = os.path.join(sum_dir, 'fixed_geometry_mass_balance_{}.csv'.format(sample_id))
-                opath_2 = os.path.join(sum_dir, 'specific_mb_{}.csv'.format(sample_id))
+        opath_test3 = os.path.join(wd_path, 'summary', 'historical_run_massbalance_output.csv')
 
-               
+        ds_diag_ext_test3 = pd.read_csv(opath_test2)
+        ds_diag_ext_test3 = xr.Dataset.from_dataframe(ds_diag_ext_test3)    
+        ds_diag_ext_test3 = ds_diag_ext_test3.rename({'Unnamed: 0': "time"})
+        ds_diag_ext_test3 = ds_diag_ext_test3.where((ds_diag_ext_test3['time'] >= 1985) & (ds_diag_ext_test3['time'] < 2014))
+        axes[row, col].plot(ds_diag_ext_test3["time"], ds_diag_ext_test3[rgi_id], label="after spinup", color="blue", linewidth=2, linestyle="dotted")
+        print(ds_diag_ext_test2)
+        
+        
 
-    
-                 
-                # Load the dataset
-                ds_diag_ext = pd.read_csv(opath)
-                ds_diag_ext = xr.Dataset.from_dataframe(ds_diag_ext)    
-                ds_diag_ext = ds_diag_ext.rename({'Unnamed: 0': "time"})
-                ds_diag_ext = ds_diag_ext.where((ds_diag_ext['time'] >= 1985) & (ds_diag_ext['time'] < 2014))
-                
-                ds_diag_ext_test = pd.read_csv(opath_2)
-                ds_diag_ext_test = xr.Dataset.from_dataframe(ds_diag_ext_test)    
-                ds_diag_ext_test = ds_diag_ext_test.rename({'Year': "time"})
-                ds_diag_ext_test = ds_diag_ext_test.where((ds_diag_ext_test['time'] >= 1985) & (ds_diag_ext_test['time'] < 2015))
-                print(ds_diag_ext_test)
-                filtered_data = ds_diag_ext_test.where(ds_diag_ext_test["Glacier"] == rgi_id, drop=True)
+        
+        # for m, model in enumerate(models):
+        #     if averaged==True:
+        #         members=[1,1,1,1,1]
+            
+        #     for i in range(members[m]):
+        #         # Create a sample-id tag to list model results
+        #         sample_id = f"{model}.00{i}" 
+        #         # Define the output path
+        #         opath = os.path.join(sum_dir, 'compiled_mass_balance_output_{}.csv'.format(sample_id))
 
+              
+        #         # Load the dataset
+        #         ds_diag_ext = pd.read_csv(opath)
+        #         ds_diag_ext = xr.Dataset.from_dataframe(ds_diag_ext)    
+        #         ds_diag_ext = ds_diag_ext.rename({'Unnamed: 0': "time"})
+        #         ds_diag_ext = ds_diag_ext.where((ds_diag_ext['time'] >= 1985) & (ds_diag_ext['time'] < 2014))
+                
+        #         # print(ds_diag_ext.data_vars)
+                
+        #         mb_2010_2020 = ds_diag_ext.where((ds_diag_ext['time'] >= 2000) & (ds_diag_ext['time'] < 2014))
+        #         mean_mb_2010_2020 = mb_2010_2020[rgi_id].mean()
                 
                 
-                # print(ds_diag_ext.data_vars)
+        #         # Plot the data with the appropriate color
                 
-                mb_2010_2020 = ds_diag_ext.where((ds_diag_ext['time'] >= 2000) & (ds_diag_ext['time'] < 2014))
-                mean_mb_2010_2020 = mb_2010_2020[rgi_id].mean()
-                
-                
-                # Plot the data with the appropriate color
-                
-                if m==4:
-                    axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[rgi_id], label=sample_id, color=colors[model][i], linewidth=2)
-                    axes[row,col].plot([2000, 2020], [mean_mb_2010_2020, mean_mb_2010_2020], color=colors[model][i], linestyle='dashed', label='OGGM modelled mean 2000-2020')
-                elif i==0:
-                    axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[rgi_id], label=sample_id, color=colors[model][i], linewidth=3, alpha=1)
-                    # axes[row,col].plot([2000, 2020], [mean_mb_2010_2020, mean_mb_2010_2020], color=colors[model][i], linestyle='dashed', label=False)
-                    # axes[row, col].plot(filtered_data["time"], filtered_data["Mass Balance"], label="new mb model", color=colors[model][i], linewidth=3, alpha=1, linestyle="-.")
+        #         if m==4:
+        #             axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[rgi_id], label=sample_id, color=colors[model][i], linewidth=2)
+        #             axes[row,col].plot([2000, 2020], [mean_mb_2010_2020, mean_mb_2010_2020], color=colors[model][i], linestyle='dashed', label='OGGM modelled mean 2000-2020')
+        #         elif i==0:
+        #             axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[rgi_id], label=sample_id, color=colors[model][i], linewidth=3, alpha=1)
+        #             # axes[row,col].plot([2000, 2020], [mean_mb_2010_2020, mean_mb_2010_2020], color=colors[model][i], linestyle='dashed', label=False)
+        #             # axes[row, col].plot(filtered_data["time"], filtered_data["Mass Balance"], label="new mb model", color=colors[model][i], linewidth=3, alpha=1, linestyle="-.")
 
-                elif averaged==False:
-                    axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[rgi_id], label=sample_id, color=colors[model][i], linewidth=3, linestyle="dotted")
-                    axes[row,col].plot([2000, 2020], [mean_mb_2010_2020, mean_mb_2010_2020], color=colors[model][i], linestyle='dashed', label=False)
+        #         elif averaged==False:
+        #             axes[row, col].plot(ds_diag_ext["time"], ds_diag_ext[rgi_id], label=sample_id, color=colors[model][i], linewidth=3, linestyle="dotted")
+        #             axes[row,col].plot([2000, 2020], [mean_mb_2010_2020, mean_mb_2010_2020], color=colors[model][i], linestyle='dashed', label=False)
                 
                 
-                # Plot (mean) modelled data 
+        #         # Plot (mean) modelled data 
                 
     # Adjust the legend
     handles, labels = axes[0, 0].get_legend_handles_labels()

@@ -85,10 +85,10 @@ def plot_P_T_perturbed_baseline(model, scale, var, timeframe, plotsave):
     elif var =="Temperature":
         var_suffix="TEMP"
         var_idx='temp'
-        vmin=250
-        vmax=290
-        zero_scaled = (273-vmin)/(vmax-vmin)
-        colors = [(0, 'cornflowerblue'),(zero_scaled, 'xkcd:white'),(1, 'xkcd:tomato')]
+        vmin=-20
+        vmax=20
+        zero_scaled = 0#(273-vmin)/(vmax-vmin)
+        colors = [(0, 'cornflowerblue'),(0.5, 'xkcd:white'),(1, 'xkcd:tomato')]
         custom_cmap = LinearSegmentedColormap.from_list('custom_cmap', colors)
     
     
@@ -96,8 +96,8 @@ def plot_P_T_perturbed_baseline(model, scale, var, timeframe, plotsave):
     
     base_folder_in = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/05. OGGM Climate input files/{timeframe}/{model}/{member}"
     ifile_base=f"{base_folder_in}/{model}.00{member}.1985_2014.{timeframe}.perturbed.climate.input.nc"
-    
     data = xr.open_dataset(ifile_base)[var_idx]
+    
 
     if scale=="Local":
         data = data.where((data.lon >= 60) & (data.lon <= 109) & (data.lat >= 22) & (data.lat <= 52), drop=True)
@@ -153,6 +153,8 @@ def plot_P_T_perturbed_baseline(model, scale, var, timeframe, plotsave):
          #make into dataframe, else it doesnt work
          if isinstance(data_sel, xr.Dataset):
              data_sel = data_sel[list(data_sel.data_vars.keys())[0]]
+         if var=="Temperature":
+             data_sel=data_sel-273.15
        
          #plot the data incl the outline of the karakoram shapefile, setting the colors, but excluding the shapefile
          im = data_sel.plot.imshow(ax=ax, vmin=vmin, vmax=vmax, extend='both', transform=ccrs.PlateCarree(), cmap=custom_cmap, add_colorbar=False)
@@ -249,7 +251,7 @@ def plot_P_T_perturbed_baseline(model, scale, var, timeframe, plotsave):
     if var == "Precipitation":
         unit = 'mm'
     elif var == "Temperature":         
-        unit = 'K'
+        unit = '°C'
     
         
     """4 Include labels for the cbar and for the y and x axis"""
@@ -284,7 +286,7 @@ def plot_P_T_perturbed_baseline(model, scale, var, timeframe, plotsave):
 #%%
 
 members=[3,4,6,1] #1
-for (m,model) in enumerate(["E3SM","CESM2","CNRM","IPSL-CM6"]):#"W5E5",
+for (m,model) in enumerate(["W5E5"]):#"E3SM","CESM2","CNRM","IPSL-CM6"]):#"W5E5",
     for member in range(members[m]):
         print(member)
         for scale in ["Local"]:#,"Global"]:

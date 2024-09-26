@@ -61,6 +61,7 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
         ifile_NOI = ifile_NOI.rename({'time_counter': 'time'})
 
     if var == "Precipitation":
+
         baseline_R = ifile_NOI.pr*86400
         irrigation_R = ifile_IRR.pr*86400
         if model in ["CESM2", "E3SM"]:
@@ -68,10 +69,13 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
             baseline = baseline_R+baseline_S
             irrigation_S = ifile_IRR.sn*86400
             irrigation = irrigation_R+irrigation_S
-            # for CESM3 precipitation variables are average --> to do: calculate monthly totals
-            # if model =="CESM2":
-            irrigation = irrigation*30
-            baseline = baseline*30
+
+            days_in_month_da = baseline.time.dt.days_in_month
+            days_in_month_broadcasted = days_in_month_da.broadcast_like(
+                baseline)
+
+            irrigation = irrigation*days_in_month_broadcasted
+            baseline = baseline*days_in_month_broadcasted
             # rename the variables in the dataset
             if irrigation.name == None:
                 irrigation.name = 'pr'
@@ -128,8 +132,27 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
     # calculate absolute temperature perturbation compared to baseline
     if diftype == 'abs':
         diff = irrigation-baseline
+
+    diff = diff.to_dataset()
+    irrigation = irrigation.to_dataset()
+    baseline = baseline.to_dataset()
+    # Add attributes to all the output files
     if var == "Temperature":
         var_suffix = "TEMP"
+        diff.tas.attrs['units'] = "K"
+        diff.tas.attrs['long_name'] = "Perturbation in temperature 2m"
+        baseline.tas.attrs['units'] = "K"
+        baseline.tas.attrs['long_name'] = "Temperature 2m"
+        irrigation.tas.attrs['units'] = "K"
+        irrigation.tas.attrs['long_name'] = "Temperature 2m"
+    if var == "Precipitation":
+        diff.pr.attrs['units'] = "%"
+        diff.pr.attrs[
+            'long_name'] = f"perturbation in precipitation: ((irrigation-baseline)/irrigation * 100), base: kg/m2, ({timeframe})"
+        baseline.pr.attrs['units'] = "kg/m2"
+        baseline.pr.attrs['long_name'] = f"Precip Total liq+sol ({timeframe})"
+        irrigation.pr.attrs['units'] = "kg/m2"
+        irrigation.pr.attrs['long_name'] = f"Precip Total liq+sol ({timeframe})"
 
     # save difference and processed input files:
     base_folder_out = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/01. Processed input data/{var}/{timeframe}/{model}/{member}"
@@ -142,8 +165,9 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
     ofile_noi = f"{base_folder_out}/{model}.{var_suffix}.NOI.00{member}.1985_2014_{timeframe}_{diftype}.nc"
 
     diff.to_netcdf(ofile_diff)
-    # irrigation.to_netcdf(ofile_irr)
-    # baseline.to_netcdf(ofile_noi)
+    irrigation.to_netcdf(ofile_irr)
+    baseline.to_netcdf(ofile_noi)
+
     return
 
 
@@ -228,6 +252,17 @@ def process_P_T_baseline(model, member, var, timeframe, diftype, y0, ye):
         # the input comes from monthly totals, so we don't need to sum over monthly data anymore
         if var == "Precipitation":
             baseline = baseline.resample(time=time_averaging).sum(dim='time')
+
+    if var == "Temperature":
+
+        baseline.tas.attrs['units'] = "K"
+        baseline.tas.attrs['long_name'] = "Temperature 2m, ({timeframe})"
+        # print(baseline.tas.attrs)
+    if var == "Precipitation":
+        baseline.pr.attrs['units'] = "kg/(m2)"
+        baseline.pr.attrs['long_name'] = "Precip Total liq+sol, ({timeframe})"
+        # print(baseline.pr.attrs)
+
     # save difference and processed input files:
     base_folder_out = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/01. Processed input data/{var}/{timeframe}/{model}/{member}"
     os.makedirs(base_folder_out, exist_ok=True)
@@ -922,10 +957,11 @@ def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, di
 
 # %% Cell 5: Run the perturbation processing for all climate models, members etc.
 members = [1, 3, 4, 6]
+# members = [1, 1, 1, 1]
 
 for (m, model) in enumerate(["IPSL-CM6", "E3SM", "CESM2", "CNRM"]):
     for member in range(members[m]):
-        for var in ["Precipitation"]:  # ,"Temperature"]:
+        for var in ["Precipitation"]:  # "Temperature"]:  # ,"Temperature"]:
             for timeframe in ["annual", "seasonal", "monthly"]:
                 for mode in ['dif']:  # , 'std']:
                     if var == "Precipitation" and mode == 'dif':
@@ -933,7 +969,7 @@ for (m, model) in enumerate(["IPSL-CM6", "E3SM", "CESM2", "CNRM"]):
                     else:
                         diftypes = ['abs']
                     for dif in diftypes:
-                        print(model, member, timeframe, dif)
+                        print(var, model, member, timeframe, dif)
                         process_P_T_perturbations(
                             model, member, var, timeframe, mode, dif)
 
@@ -944,7 +980,7 @@ ye = [2014, 2020]
 for model in ["W5E5"]:
 
     for member in [0]:
-        for var in ["Temperature"]:  # Precipitation", "Temperature"]:
+        for var in ["Precipitation", "Temperature"]:
             for timeframe in ["annual", "seasonal", "monthly"]:
                 for diftype in ['abs']:
 

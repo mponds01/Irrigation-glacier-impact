@@ -16,6 +16,9 @@ This script performs an initial data screening, in 3 sections:
 # %% Cell 1: Process the climate data - stored as netCDF output
 
 
+# %%
+
+
 
 
 import pandas as pd
@@ -605,6 +608,10 @@ def plot_P_T_perturbations(model, scale, var, timeframe, mode, diftype, plotsave
     plt.show()
     return
 
+
+# %%
+
+
 # %% Cell 4: Plotting the climate data - for perturbations and input data
 
 
@@ -1016,46 +1023,154 @@ for (m, model) in enumerate(["IPSL-CM6", "E3SM", "CESM2", "CNRM"]):
                                     model, scale, var, timeframe, mode, dif, "save")
                                 # plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, dif,"save")
 
-
-# %%% TEST
-def process_P_T_perturbations(model, member, var, timeframe, mode, diftype):
-
-    if mode == 'dif':
-        mode_suff = 'total'
-    if mode == 'std':
-        mode_suff = 'std'
-
-    # Enable variability for differnt timescales in: amount of subplots, time-averaging used
-    if timeframe == 'monthly':
-        time_averaging = 'time.month'
-    if timeframe == 'seasonal':
-        time_averaging = 'time.season'
-    if timeframe == 'annual':
-        time_averaging = 'time.year'
-
-    """ Part 0 - Load and open the climate data"""
-    # paths to climate data
-    folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/01. Climate data/{model}/"
-    ifile_IRR = f"{model}.IRR.00{member}.1985_2014_selparam_monthly_{mode_suff}.nc"
-    ifile_NOI = f"{model}.NOI.00{member}.1985_2014_selparam_monthly_{mode_suff}.nc"
-    # first for each variable load the data, for precipitation this consists of Snow & Rain from atmosphere, converted from [mm/day]
-    ifile_IRR = xr.open_dataset(folder_in+ifile_IRR)
-    ifile_NOI = xr.open_dataset(folder_in+ifile_NOI)
-
-    print(model, ifile_IRR.pr.units)
-    print(model, ifile_IRR.pr.units)
+# %%
 
 
+def plot_avg_P_T_perturbations(model, scale, var, timeframe, mode, diftype, member, plotsave):
+    """ Part 0 - Set plotting parameters (same as before)"""
+    if scale == "Global":
+        if timeframe == 'monthly':
+            figsize = (25, 12)
+            fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
+                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+            timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
+                          'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+        if timeframe == 'seasonal':
+            figsize = (12, 7.5)
+            fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
+                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+            timestamps = ['DJF', 'MAM', 'JJA', 'SON']
+        if timeframe == 'annual':
+            figsize = (7, 5)
+            fig, axes = plt.subplots(nrows=1, ncols=1, subplot_kw={
+                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+            timestamps = ['YEAR']
+
+    if scale == "Local":
+        if timeframe == 'monthly':
+            figsize = (18, 10)
+            fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
+                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+            timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
+                          'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+        if timeframe == 'seasonal':
+            figsize = (9, 7)
+            fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
+                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+            timestamps = ['DJF', 'MAM', 'JJA', 'SON']
+        if timeframe == 'annual':
+            figsize = (7, 5)
+            fig, axes = plt.subplots(nrows=1, ncols=1, subplot_kw={
+                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+            timestamps = ['YEAR']
+
+    # Provide cbar ranges and colors for plots for different variables (same as before)
+    if var == "Precipitation":
+        var_suffix = "PR"
+        vmin = -40 if diftype == 'rel' else -50
+        vmax = 40 if diftype == 'rel' else 75
+        colors = [(0, 'xkcd:mocha'), (0.5, 'xkcd:white'),
+                  (1, 'xkcd:aquamarine')]
+        unit = 'mm'
+    elif var == "Temperature":
+        var_suffix = "TEMP"
+        vmin = -1.5
+        vmax = 1.5
+        colors = [(0, 'cornflowerblue'),
+                  (0.5, 'xkcd:white'), (1, 'xkcd:tomato')]
+        unit = '°C'
+
+    custom_cmap = LinearSegmentedColormap.from_list('custom_cmap', colors)
+
+    """ Part 1: Load and average data for all members """
+    all_diff_data = []
+
+    diff_folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/02. Perturbations/{var}/{timeframe}/{model}/{member}"
+    ifile_diff = f"{diff_folder_in}/{model}.{var_suffix}.DIF.00{member}.1985_2014_{timeframe}_{diftype}.nc"
+    diff = xr.open_dataset(ifile_diff)
+    if scale == "Local":
+        diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (
+            diff.lat >= 22) & (diff.lat <= 52), drop=True)
+    all_diff_data.append(diff)
+
+    # Compute the mean across all members
+    avg_diff = sum(all_diff_data) / len(all_diff_data)
+
+    """ Part 2 - Shapefile outline for Karakoram Area to be included (same as before) """
+    shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
+    shp = gpd.read_file(shapefile_path)
+    shp = shp.to_crs('EPSG:4326')
+
+    if model == "CNRM" and member == 5:
+        """ Part 3 - Plotting the averaged data """
+        for time_idx, timestamp_name in enumerate(timestamps):
+            if timeframe == 'monthly':
+                row, col = time_idx // 4, time_idx % 4
+                ax = axes[row, col]
+            elif timeframe == 'seasonal':
+                row, col = time_idx // 2, time_idx % 2
+                ax = axes[row, col]
+            elif timeframe == 'annual':
+                ax = axes
+
+            # Select the relevant time step
+            if timeframe != 'annual':
+                time_dim_name = list(avg_diff.dims)[
+                    2] if scale == "Global" else list(avg_diff.dims)[0]
+                diff_sel = avg_diff.isel({time_dim_name: time_idx})
+            else:
+                diff_sel = avg_diff
+
+            if isinstance(diff_sel, xr.Dataset):
+                diff_sel = diff_sel[list(diff_sel.data_vars.keys())[0]]
+
+            # Plot data and shapefile outline
+            im = diff_sel.plot.imshow(ax=ax, vmin=vmin, vmax=vmax, extend='both',
+                                      transform=ccrs.PlateCarree(), cmap=custom_cmap, add_colorbar=False)
+            shp.plot(ax=ax, edgecolor='black', linewidth=1, facecolor='none')
+            ax.coastlines(resolution='10m')
+
+            # Annotate the plot
+            ax.set_title('')
+            ax.annotate(timestamp_name, xy=(1, 1), xytext=(-10, -10), xycoords='axes fraction',
+                        textcoords='offset points', ha='right', va='top', fontsize=15,
+                        bbox=dict(boxstyle='square', fc='white', alpha=1))
+
+        """ Part 4 - Add color bar for entire plot """
+        cbar_ax = fig.add_axes([0.92, 0.1, 0.02, 0.8])
+        fig.colorbar(im, cax=cbar_ax, extend='both').set_label(
+            f'$\Delta$ {var} [{unit}]', size='15')
+
+        plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1,
+                            top=0.9, wspace=0.05, hspace=0.05)
+
+        # if plotsave == 'save':
+        #     o_folder_diff = f"/path/to/save/folder/{model}/avg"
+        #     os.makedirs(o_folder_diff, exist_ok=True)
+        #     plt.savefig(f"{o_folder_diff}/{model}_{var_suffix}_avg.png", bbox_inches='tight')
+        plt.show()
+
+
+members = [1, 3, 4, 6]
 for (m, model) in enumerate(["IPSL-CM6", "E3SM", "CESM2", "CNRM"]):
     for member in range(members[m]):
-        for var in ["Precipitation"]:  # ,"Temperature"]:
-            for timeframe in ["annual", "seasonal", "monthly"]:
-                for mode in ['dif']:  # , 'std']:
-                    if var == "Precipitation" and mode == 'dif':
-                        diftypes = ['abs', 'rel']
-                    else:
-                        diftypes = ['abs']
-                    for dif in diftypes:
-                        print(model, member, timeframe, dif)
-                        process_P_T_perturbations(
-                            model, member, var, timeframe, mode, dif)
+        print(member)
+        if member != 0:
+            for scale in ["Local"]:  # ,"Global"]:
+                for plotvar in ["DIF"]:  # "IRR", "NOI"]:#,"DIF"]:
+                    # "Temperature", "Precipitation"]:
+                    for var in ["Temperature"]:
+                        # , "seasonal", "monthly"]:
+                        for timeframe in ["annual"]:
+                            for mode in ['dif']:  # , 'std']:
+
+                                if plotvar == "DIF" and var == "Precipitation" and mode == 'dif':
+                                    diftypes = ["rel"]  # abs','rel']
+                                else:
+                                    diftypes = ["abs"]
+
+                                for dif in diftypes:
+                                    print(dif)
+                                    plot_avg_P_T_perturbations(
+                                        model, scale, var, timeframe, mode, dif, member, "save")
+                                    # plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, dif,"save")

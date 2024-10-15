@@ -56,6 +56,7 @@ import pickle
 import sys
 import textwrap
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+import matplotlib.patches as mpatches
 function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/src/03. Glacier simulations"
 sys.path.append(function_directory)
 
@@ -78,6 +79,7 @@ models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM"]
 timeframe = "monthly"
 
 # %% Cell 0: Initialize OGGM with the preferred model parameter set up
+
 folder_path = '/Users/magaliponds/Documents/00. Programming'
 wd_path = f'{folder_path}/02. Modelled perturbation-glacier interactions - regional analysis/'
 os.makedirs(wd_path, exist_ok=True)
@@ -105,176 +107,7 @@ y0_clim = 1985
 ye_clim = 2014
 
 
-# %% Cell 1a: Load Hugonnet data - 2000-2020 year average
-
-# Hugonnet data source: Harry via Teams
-Hugonnet_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/04. Reference/01. Climate data/Hugonnet/aggregated_2000_2020/13_mb_glspec.dat'
-
-df_raw = pd.read_csv(Hugonnet_path)
-
-
-# Convert the pandas DataFrame to an Xarray Dataset
-ds = xr.Dataset.from_dataframe(df_raw)
-# Load the data variables, as they are listed in the first row
-var_index = ds.coords['index'].values
-header_str = var_index[1]  # Set the var_index as the header string
-data_rows_str = var_index[2:]  # Set the datarows
-# # print(header_str, data_rows_str)
-
-# # split data input in such a way that it is loaded as dataframe with columns headers and data in table below
-header = header_str.split()
-
-# # Transform the data type from string values to integers for the relevant columns
-data_rows = [row.split() for row in data_rows_str]
-
-
-def str_to_float(value):
-    return float(value)
-
-
-df = pd.DataFrame(data_rows, columns=header)
-for col in df.columns:
-    if col != 'RGI-ID':  # Exclude column 'B'
-        df[col] = df[col].apply(str_to_float)
-
-# # # create a dataset from the transformed data in order to select the required glaciers
-df.rename(columns={'RGI-ID': 'rgi_id'})
-ds = xr.Dataset.from_dataframe(df)
-# # df.to_csv("/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/04. Reference/Hugonnet/aggregated_2000_2020/13_mb_glspec-edited.csv")
-
-
-# %% Cell 1b: Load RGI dataset and reformat RGI-notation
-# downloaded from GLIMS
-RGI_data = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/RGI/General Area/RGI2000-v7.0-C-13_central_asia/RGI2000-v7.0-C-13_central_asia.shp"
-
-rgis = gpd.read_file(RGI_data)
-# transform identifier to right format
-
-
-def transform_identifier(identifier):
-    num = int(identifier.split('-')[-1])
-    return f'RGI60-13.{str(num).zfill(5)}'
-
-
-# reformat the rgi_id column such that it is standard annotation
-rgis['rgi_id'] = rgis['rgi_id'].apply(transform_identifier)
-
-
-# %% Cell 2: Filter the Hugonnet data according to availability in the RGI
-
-hugo_filtered = ds.where(ds['RGI-ID'].isin(rgis['rgi_id']), drop=True)
-
-
-# %% Cell 2b Create master dataset containing all info from Hugonnet and RGI
-
-# reset the indices for both dataset so that they can be merged using xarray
-hugo_ds = hugo_filtered.rename({'RGI-ID': 'rgi_id'})
-hugo_ds = hugo_ds.to_dataframe()
-hugo_ds = hugo_ds.set_index('rgi_id').to_xarray()
-
-rgis_copy = rgis
-rgis_copy = rgis_copy.set_index('rgi_id')
-rgis_ds = rgis_copy.to_xarray()
-rgis_ds['rgi_id_rgis'] = rgis_ds['rgi_id']
-hugo_ds['rgi_id_hugo'] = hugo_ds['rgi_id']
-
-
-# hugo_ds = hugo_ds.reset_index('index', drop=True)
-
-master_ds = xr.merge([rgis_ds, hugo_ds], join='inner')
-master_ds['area_dif'] = master_ds['Area']-master_ds['area_km2']
-
-plt.scatter(np.arange(0, len(master_ds.area_dif), 1), master_ds.area_dif)
-plt.ylabel("$\Delta$ Area (Hugonnet - RGI)")
-plt.xlabel("Glacier index #")
-wd_path = '/Users/magaliponds/Documents/00. Programming/02. Modelled perturbation-glacier interactions - regional analysis/'
-# master_ds.to_dataframe().to_csv(f"{wd_path}/region13_RGI_master_rgi_hugo.csv")
-
-# %% Cell 3a: Plot histogram from Hugonnet input data (# glaciers A>10km2 vs B)
-""" Find glaciers with most postive MB and other conditions"""
-
-# create a copy of hugo_ds, where the non RGI glaciers have been filtered out
-hugo_ds_filtered = master_ds
-conditions = {
-    # 'B': ds_filtered['B'] >= 0,
-    # 'errB': ds_filtered['errB'] < 0.2,
-    # 'area_km2': hugo_ds_filtered['area_km2'] > 10 #filter for rgis area is larger than 10 km2
-    # filter for Hugonnet area is larger than 10 km2
-    'Area': hugo_ds_filtered['Area'] > 10
-}
-
-for var, condition in conditions.items():
-    hugo_ds_filtered = hugo_ds_filtered.where(condition, drop=True)
-
-
-# create a pandas dataframe of the filtered glaciers in order to sort them on Area
-hugo_df_filtered = hugo_ds_filtered.to_dataframe().reset_index()
-hugo_df_filtered = hugo_df_filtered.sort_values(by='B', ascending=False)
-# df_filtered_subset=df_filtered[1:11]
-plt.figure(figsize=(10, 5))
-n, bins, patches = plt.hist(hugo_df_filtered['B'], bins=np.linspace(hugo_df_filtered['B'].min(
-), hugo_df_filtered['B'].max(), int(len(hugo_df_filtered['B'])/7)), align='left', rwidth=0.8, color='green')
-# plt.xlim((0,1.25))
-
-plt.ylabel("# of glaciers [-]")
-plt.xlabel("B")
-
-# Color the bins
-for patch, bin_edge in zip(patches, bins):
-    if bin_edge < 0:
-        patch.set_facecolor('red')
-    else:
-        patch.set_facecolor('green')
-
-plt.xlim((-2, 2))
-plt.ylabel("# of glaciers [-]")
-plt.xlabel("B (m w.e.)")
-
-
-def gaussian(x, mu, sigma, A):
-    return A * np.exp(-(x - mu)**2 / (2 * sigma**2))
-
-
-bin_centers = (bins[:-1] + bins[1:]) / 2
-
-# Fit the Gaussian curve to the histogram data
-params_hugo, covariance_hugo = curve_fit(gaussian, bin_centers, n, p0=[np.mean(
-    hugo_df_filtered['B']), np.std(hugo_df_filtered['B']), np.max(n)])
-x = np.linspace(hugo_df_filtered['B'].min(), hugo_df_filtered['B'].max(), 100)
-plt.plot(x, gaussian(x, *params_hugo), color='black',
-         label='Fitted Gaussian Hugonnet')
-# plt.plot(x, gaussian(x, *params), color='grey', label='Fitted Gaussian OGGM')
-# plt.title('Hugonnet derived B')
-total_glaciers = len(hugo_df_filtered['B'].values)
-plt.annotate(f"Total number of glaciers: {total_glaciers}", xy=(
-    0.05, 0.95), xycoords='axes fraction', fontsize=12, verticalalignment='top')
-plt.annotate(f"Std: {round(np.std(hugo_df_filtered['B']),2)}", xy=(
-    0.05, 0.9), xycoords='axes fraction', fontsize=12, verticalalignment='top')
-
-plt.legend()
-
-
-wd_path = '/Users/magaliponds/Documents/00. Programming/02. Modelled perturbation-glacier interactions - regional analysis/'
-hugo_df_filtered.to_csv(
-    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area.csv")
-
-
-# %% Cell 3B: Compare the percentage of Area and volume of the hugo_ds with A>10km2
-
-wd_path = '/Users/magaliponds/Documents/00. Programming/02. Modelled perturbation-glacier interactions - regional analysis/'
-
-hugo_ds_filtered = pd.read_csv(
-    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area.csv")
-hugo_ds = pd.read_csv(
-    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area.csv")
-
-area_share = hugo_ds_filtered.Area.sum()/hugo_ds.Area.sum()
-print(area_share*100)
-share = len(hugo_ds_filtered.rgi_id)/len(hugo_ds.rgi_id)
-print(share*100)
-
-
-# %% Cell 4a: ONLY DOWNLOAD ONCE (takes a long time) Get OGGM gdirs for the based on Hugonnet sample glacier dataset
+# %% Cell 1a: ONLY DOWNLOAD ONCE (takes a long time) Get OGGM gdirs for the based on Hugonnet sample glacier dataset
 
 download_gdirs = False
 
@@ -302,7 +135,7 @@ if download_gdirs == True:
             # Update tqdm progress bar
             pbar.update(1)
 
-# %% Cell 4b: Save gdirs from OGGM as a pkl file (Save at the end of every working session)
+# %% Cell 1b: Save gdirs from OGGM as a pkl file (Save at the end of every working session)
 
 # Save each gdir individually
 for gdir in gdirs:
@@ -310,7 +143,7 @@ for gdir in gdirs:
     with open(gdir_path, 'wb') as f:
         pickle.dump(gdir, f)
 
-# %% Cell 4c: Load gdirs from pkl (fastest way to get started)
+# %% Cell 1c: Load gdirs from pkl (fastest way to get started)
 
 wd_path_pkls = f'{wd_path}/pkls/'
 
@@ -324,6 +157,113 @@ for filename in os.listdir(wd_path_pkls):
             gdirs.append(gdir)
 
 # # print(gdirs)
+
+# %% Cell 2: Read the inversion output to add to the master
+master_df = pd.read_csv(
+    f"{wd_path}/region13_RGI_master_rgi_hugo.csv").drop(columns=['Unnamed: 0'])
+print(master_df.columns)
+# %% Cell 3: Create a dataset that contains Gdir Area, volume, rgi date and rgi ID
+
+# Initialize lists to store output
+rgi_ids = []
+rgi_dates = []
+rgi_areas = []
+rgi_volumes = []
+
+# Iterate through each glacier directory
+for gdir in gdirs:
+    try:
+        # Load data
+        rgi_ids.append(gdir.rgi_id)  # RGI ID
+        rgi_dates.append(gdir.rgi_date)  # Validity date
+        rgi_areas.append(gdir.rgi_area_km2)  # Area corresponding to RGI date
+
+        # Calculate the number of steps from RGI date to 2020
+        # steps = 2020 - gdir.rgi_date + 1
+
+        # Load the model diagnostics
+        with xr.open_dataset(gdir.get_filepath('model_diagnostics', filesuffix="_historical")) as ds:
+            # [-steps]  # Use the most relevant volume data
+            vol = ds.volume_m3[1]
+            rgi_volumes.append(vol.values * 10**-9)  # Convert to km³
+
+    except Exception as e:
+        # Print error message for debugging
+        print(f"Error processing {gdir.rgi_id}: {e}")
+
+        # Remove the last added values from all lists if file couldn't be opened
+        if rgi_ids:  # Check if lists are non-empty
+            rgi_ids.pop()      # Remove last RGI ID
+            rgi_dates.pop()    # Remove last validity date
+            rgi_areas.pop()    # Remove last area
+
+# Create a DataFrame only if lists are non-empty
+if rgi_ids:
+    data = {
+        'rgi_id': rgi_ids,
+        'rgi_date': rgi_dates,
+        'rgi_area_km2': rgi_areas,
+        'rgi_volume_km3': rgi_volumes
+    }
+
+    # Create the DataFrame
+    df = pd.DataFrame(data)
+else:
+    # Empty DataFrame if no data
+    df = pd.DataFrame(columns=['rgi_id', 'rgi_date',
+                      'rgi_area_km2', 'rgi_volume_km3'])
+
+# Output the DataFrame
+print(df)
+# ssave the dataframe in the working directory
+df.to_csv(f"{wd_path}/master_gdir_rgi_date_A_V.csv")
+
+
+# %% Cell 4: Plot total cumulative volume vs area (ascending)
+
+
+# Sort the DataFrame by area from large to small
+df_sorted = df.sort_values(by='rgi_area_km2', ascending=True)
+
+# Calculate cumulative volume
+df_sorted['cumulative_volume_km3'] = df_sorted['rgi_volume_km3'].cumsum()
+df_sorted = df_sorted.sort_values(by='rgi_area_km2', ascending=True)
+
+# Create the plot
+plt.figure(figsize=(10, 6))
+
+# Normalize the volumes for color mapping
+norm = plt.Normalize(df_sorted['rgi_volume_km3'].min(),
+                     df_sorted['rgi_volume_km3'].max())
+cmap = cm.viridis  # You can choose any colormap you like
+
+# Plot points with color scale based on individual volume
+sc = plt.scatter(df_sorted['rgi_area_km2'], df_sorted['cumulative_volume_km3'],
+                 c=df_sorted['rgi_volume_km3'], cmap=cmap, norm=norm, alpha=0.7)
+
+plt.grid(False)  # turn off the gridlines
+# Set titles and labels
+plt.title('Cumulative Glacier Volume vs Area', fontsize=16)
+plt.suptitle(f'Total Glaciers: {len(df_sorted)}', fontsize=12)
+plt.xlabel('Glacier Area (km²)', fontsize=12)
+plt.ylabel('Cumulative Glacier Volume (m³)', fontsize=12)
+
+# Invert the y-axis to have cumulative volume decrease as area decreases
+# plt.gca().invert_yaxis()
+
+# Create a colorbar to indicate volume scale
+cbar = plt.colorbar(sc)
+cbar.set_label('Individual Glacier Volume (km³)', fontsize=12)
+
+# Optional: Calculate and display mean and median volumes
+mean_volume = df_sorted['rgi_volume_km3'].mean()
+median_volume = df_sorted['rgi_volume_km3'].median()
+plt.text(0.05, 0.95, f'Mean Volume: {mean_volume:.2f} km³\nMedian Volume: {median_volume:.2f} km³',
+         transform=plt.gca().transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle="round,pad=0.3", edgecolor='white', facecolor='white'))
+
+# Show the plot
+plt.show()
+
 
 # %% Cell 5: Process the Irr climate perturbations for all the gdirs and compile
 
@@ -388,41 +328,44 @@ for gdir in gdirs:
 for m, model in enumerate(models):
     for member in range(members[m]):
 
+        # create a sample id for all the model x member combinations
         sample_id = f"{model}.00{member}"
+
+        # create lists to store the model output
         mb_ts_mean = []
         mb_ts_all = []
         mb_ts_mean_ext = []
         mb_ts_all_ext = []
         error_ids = []
-        count = 0
 
+        # load the gdirs
         for (g, gdir) in enumerate(gdirs):
             try:
-                count += 1
-                # print(f"Processing {count} of {len(gdirs)}")
-                # , filesuffix='_dyn_melt_f_calib')
+                # provide the model flowlines and years for the mbmod
                 fls = gdir.read_pickle('model_flowlines')
-                years = np.arange(1985, 2014)
+                years = np.arange(1985, 2015)
+                # years = np.arange(2000, 2010) #test for all datasets in same timeframe
 
                 if model == "W5E5":
-                    # extend range to see match w. geodetic mass balance
+                    # extend range for w5e5, to see match w. geodetic mass balance
                     years_ext = np.arange(2000, 2020)
                     # Get the calibrated mass-balance model - the default is to use OGGM's "MonthlyTIModel" and compute specific mb
                     mbmod = massbalance.MonthlyTIModel(
                         gdir, filename='climate_historical')
                     mb_ts = mbmod.get_specific_mb(fls=fls, year=years)
+                    # also run the model for the extended years and save
                     mb_ts_ext = mbmod.get_specific_mb(fls=fls, year=years_ext)
+                    for year, mb in zip(years, mb_ts):
+                        mb_ts_all.append((gdir.rgi_id, year, mb))
                 else:
                     mbmod = massbalance.MonthlyTIModel(
                         gdir, filename='gcm_data', input_filesuffix='_perturbed_{}'.format(sample_id))
                     mb_ts = mbmod.get_specific_mb(fls=fls, year=years)
-
                 # Append all time series data to mb_ts_all
                 for year, mb in zip(years, mb_ts):
                     mb_ts_all.append((gdir.rgi_id, year, mb))
-                for year, mb in zip(years_ext, mb_ts_ext):
-                    mb_ts_all_ext.append((gdir.rgi_id, year, mb))
 
+            # include an exception so the model will continue running on error and provide the error
             except Exception as e:
                 # Handle the error and continue
                 print(
@@ -437,25 +380,32 @@ for m, model in enumerate(models):
                 mean_mb_ext = np.mean(mb_ts_ext)
                 mb_ts_mean_ext.append((gdir.rgi_id, mean_mb_ext))
 
+        # create a dataframe with the mass balance data of all gdirs
         mb_df_mean = pd.DataFrame(mb_ts_mean, columns=['rgi_id', 'B'])
         mb_df_mean.to_csv(os.path.join(
             sum_dir, f'specific_massbalance_mean_{sample_id}.csv'), index=False)
-        # Create a DataFrame from the collected data
+        # mb_df_mean.to_csv(os.path.join(
+        #     sum_dir, f'specific_massbalance_mean_{sample_id}_2000_2010.csv'), index=False) #for testing with same timeseries
         mb_ts_df = pd.DataFrame(
             mb_ts_all, columns=['rgi_id', 'Year', 'Mass_Balance'])
-        # Save to a single CSV file
         mb_ts_df.to_csv(os.path.join(
             sum_dir, f'specific_massbalance_timeseries_{sample_id}.csv'), index=False)
+        # mb_ts_df.to_csv(os.path.join(
+        #     sum_dir, f'specific_massbalance_timeseries_{sample_id}_2000_2010.csv'), index=False) # for testing with same timeframe
 
-        if model == "W5E5":
+        if model == "W5E5":  # only for W5E5 also create a dataframe for the extended timeseries
             mb_df_mean_ext = pd.DataFrame(
                 mb_ts_mean_ext, columns=['rgi_id', 'B'])
             mb_df_mean_ext.to_csv(os.path.join(
                 sum_dir, f'specific_massbalance_mean_extended_{sample_id}.csv'), index=False)
-            mb_ts_df_ext = pd.DataFrame(
-                mb_ts_all_ext, columns=['rgi_id', 'Year', 'Mass_Balance'])
+            # mb_df_mean_ext.to_csv(os.path.join(
+            #     sum_dir, f'specific_massbalance_mean_extended_{sample_id}_2000_2020.csv'), index=False) #for testing with the same timeframes
+            mb_ts_df_ext = pd.DataFrame(mb_ts_all_ext, columns=[
+                                        'rgi_id', 'Year', 'Mass_Balance'])
             mb_ts_df_ext.to_csv(os.path.join(
                 sum_dir, f'specific_massbalance_timeseries_extended_{sample_id}.csv'), index=False)
+            # mb_ts_df_ext.to_csv(os.path.join(
+            #     sum_dir, f'specific_massbalance_timeseries_extended_{sample_id}_2000_2020.csv'), index=False) #for testing with the same timeframes
 
         # Optionally save the list of error cases to a CSV for later review
         if error_ids:
@@ -466,6 +416,7 @@ for m, model in enumerate(models):
 
 # %% Cell 80: Update the master dataset with B, A, RGI ID and location for all the different sample ids (541x15=8115)
 
+master_df = pd.read_csv(f"{wd_path}/region13_RGI_master_rgi_hugo.csv")
 data = []
 rgi_ids = []
 labels = []
@@ -501,6 +452,7 @@ data_array = np.array(data)
 reshaped_data = data_array.T
 # Create a DataFrame for the reshaped data
 df = pd.DataFrame(reshaped_data,  index=rgi_ids, columns=np.repeat(labels, 1))
+
 df['B_irr'] = base_array
 
 df.rename_axis("rgi_id", inplace=True)
@@ -521,7 +473,7 @@ df_complete = pd.merge(df_melted, b_irr_repeated, on=['rgi_id', 'sample_id'])
 df_complete['B_delta'] = df_complete.B_irr-df_complete.B_noirr
 
 # Merge with rgis_complete
-master_df = master_ds.to_dataframe()
+# master_df = master_ds.to_dataframe()
 df_complete = pd.merge(df_complete, master_df, on='rgi_id', how='inner')
 
 # reorder the dataset
@@ -529,7 +481,7 @@ df_complete = df_complete[[
     'rgi_id', 'rgi_id_rgis', 'rgi_id_hugo', 'sample_id',
     'B_noirr', 'B_irr', 'B_delta', 'B',
     'errB', 'cenlon', 'cenlat', 'lon',
-    'lat', 'area_km2', 'Area', 'area_dif'
+    'lat', 'area_km2', 'Area', 'area_dif', 'Volume Change'
 ]]
 
 
@@ -566,16 +518,13 @@ def plot_gaussian(ax, mb, bin_size, color, label, zorder, linestyle='-', gaussia
 
 # Configuration variables
 gaussian_only = True  # Flag to use Gaussian fit only
-subplots = False
 alpha_set = 0.8
 
+mb_members = []
 
 # Initialize plot
-if subplots:
-    fig, axes = plt.subplots(2, 2, figsize=(15, 8), sharex=True, sharey=True)
-    axes = axes.flatten()
-else:
-    fig, axes = plt.subplots(1, 1, figsize=(10, 6), sharex=True, sharey=True)
+
+fig, ax = plt.subplots(1, 1, figsize=(10, 6), sharex=True, sharey=True)
 
 # Load baseline data
 i_path_base = os.path.join(sum_dir, 'specific_massbalance_mean_W5E5.000.csv')
@@ -584,57 +533,57 @@ bin_size = np.linspace(mb_base.B.min(), mb_base.B.max(),
                        int(len(mb_base.B) / 7))
 
 # Plot baseline once if not using subplots
-baseline_plotted = False
-if not subplots:
-    plot_gaussian(axes, mb_base, bin_size, "black", "W5E5.000",
-                  zorder=1, gaussian_only=gaussian_only)
-    baseline_plotted = True
+baseline_plotted = True
+plot_gaussian(ax, mb_base, bin_size, "black", "W5E5.000",
+              zorder=1, gaussian_only=gaussian_only)
 
 # Iterate over models and members
 for m, model in enumerate(models_shortlist):  # only perturbed models
-    for member in range(members[m]):
-        if member == 0:
-            linestyle = '-'
-        else:
-            linestyle = ":"
-        if subplots:
-            ax = axes[m]
-        else:
-            ax = axes  # Single plot case
-
+    for member in range(members_averages[m]):
+        # calculate the member averages
+        if members_averages[m] > 1:
+            member += 1
+        linestyle = ":"  # define the linestyle for all model members
+        # provide the sample id (members only) to open the datasets
         sample_id = f"{model}.00{member}"
+
+        # provide the path to datafile
         i_path = os.path.join(
             sum_dir, f'specific_massbalance_mean_{sample_id}.csv')
-        mb = pd.read_csv(i_path, index_col=0).to_xarray()
+        mb = pd.read_csv(i_path, index_col=0).to_xarray()  # open datafile
 
-        # Plot baseline only for subplots or first member if not already plotted
-        if subplots and member == 0:
-            plot_gaussian(ax, mb_base, bin_size, "grey", "W5E5.000",
-                          zorder=1, gaussian_only=gaussian_only)
-            if not subplots:
-                baseline_plotted = True
+        # add the data to the master dataset - needed for averaging
+        mb_members.append(mb.B.values)
 
-        # Plot ensemble member
+        # Plot data by member
         plot_gaussian(ax, mb, bin_size, colors[model][member], sample_id,
                       zorder=members[m] + member + 1, linestyle=linestyle, gaussian_only=gaussian_only)
 
-        total_glaciers = len(mb.B.values)
-
     # Add annotations and labels
-    if m == 3:
+    if m == 3:  # only for the last model plot
+        # define number of glaciers for annotation
+        total_glaciers = len(mb.B.values)
         ax.annotate(f"Total # of glaciers: {total_glaciers}", xy=(
-            0.65, 0.98), xycoords='axes fraction', fontsize=10, verticalalignment='top')
-        ax.annotate("Time period: 1985-2014", xy=(0.65, 0.92),
-                    xycoords='axes fraction', fontsize=10, verticalalignment='top')
+            0.65, 0.98), xycoords='axes fraction', fontsize=10, verticalalignment='top')  # annotate amount of glaciers
+        ax.annotate("Time period: 1985-2014", xy=(0.65, 0.92), xycoords='axes fraction',
+                    fontsize=10, verticalalignment='top')  # annotate time period
 
-    if m in [0, 2]:
-        ax.set_ylabel("# of glaciers [-]")
-    if m in [2, 3]:
-        ax.set_xlabel("Mean specific mass balance [mm w.e. yr$^{-1}$]")
 
-    ax.legend(loc="upper left", bbox_to_anchor=(0, 1))
-    ax.set_xlim(-1250, 1000)
-    ax.axvline(0, color='k', linestyle="dashed", lw=1, zorder=20)
+# calculate the 11-member average
+mb_member_average = np.mean(mb_members, axis=0)
+# load dataframe structure in order to plot gaussian
+mb_ds_members = mb.copy().to_dataframe()
+mb_ds_members['B'] = mb_member_average  # add the data to the dataframe
+plot_gaussian(ax, mb_ds_members, bin_size, "black", "11-member average",
+              zorder=members[m] + member + 1, linestyle="--", gaussian_only=gaussian_only)
+
+# format the plot
+ax.set_ylabel("# of glaciers [-]")
+ax.set_xlabel("Mean specific mass balance [mm w.e. yr$^{-1}$]")
+
+ax.legend(loc="upper left", bbox_to_anchor=(0, 1))
+ax.set_xlim(-1250, 1000)
+ax.axvline(0, color='k', linestyle="dashed", lw=1, zorder=20)
 
 plt.tight_layout()
 plt.show()
@@ -643,19 +592,7 @@ plt.show()
 # %% Cell 8B: Plot the specific mass balances using boxplots
 
 # Configuration variables
-models = ["E3SM", "CESM2", "CNRM", "IPSL-CM6"]
-members = [3, 4, 6, 1]  # Number of members for each model
 
-colors = {
-    "W5E5": ["#000000"],  # "#000000"],  # Black
-    # Darker to lighter shades of purple
-    "E3SM": ["#785EF0", "#8F7BF1", "#A6A8F2"],
-    # Darker to lighter shades of pink
-    "CESM2": ["#DC267F", "#E58A9E", "#F0A2B6", "#F7BCC4"],
-    # Darker to lighter shades of orange
-    "CNRM": ["#FE6100", "#FE7D33", "#FE9A66", "#FEB799", "#FECDB5", "#FEF1E1"],
-    "IPSL-CM6": ["#FFB000"]  # Dark purple to lighter shades
-}
 alpha_set = 0.8
 
 # Initialize plot
@@ -671,8 +608,10 @@ labels = []
 colors_list = []  # Store colors corresponding to each member for correct ordering
 
 # Iterate over models and members, collect data for boxplots
-for m, model in enumerate(models):
-    for member in range(members[m]):
+for m, model in enumerate(models_shortlist):
+    for member in range(members_averages[m]):
+        if members_averages[m] > 1:
+            member += 1
         sample_id = f"{model}.0{member:02d}"  # Ensure leading zeros
         i_path = os.path.join(
             sum_dir, f'specific_massbalance_mean_{sample_id}.csv')
@@ -686,22 +625,28 @@ for m, model in enumerate(models):
 
 
 # Adding baseline data for W5E5
+data.append(np.mean(data, axis=0))
+labels.append("11-member average")
+colors_list.append("lightblue")
+
 data.append(mb_base.B.values)
 labels.append("W5E5.000")
 colors_list.append('darkgrey')  # Assign W5E5 a default color (darkgrey)
 
 # Reverse the order of the data, labels, and colors except for "W5E5.000"
-data = data[:-1][::-1] + [data[-1]]
-labels = labels[:-1][::-1] + [labels[-1]]
-colors_list = colors_list[:-1][::-1] + [colors_list[-1]]
+# data[:-1] all but the last data point, reverse it and add it
+data = data[:-2][::-1] + [data[-2]] + [data[-1]]
+labels = labels[:-2][::-1] + [labels[-2]] + [labels[-1]]
+colors_list = colors_list[:-2][::-1] + [colors_list[-2]] + [colors_list[-1]]
 
 # Plotting the main boxplot
 box = ax.boxplot(data, patch_artist=True, labels=labels,
-                 vert=False, boxprops=dict(edgecolor='none'))
+                 vert=False, boxprops=dict(edgecolor='none'))  # , color=colors_list))
 # plt.show()
 # Color the boxes
 for patch, color in zip(box['boxes'], colors_list):
-    # rgba_color = clrs.to_rgba(color, alpha=0.5) #option to change alpha of face color, potential to use with colored median bar
+    # option to change alpha of face color, potential to use with colored median bar
+    rgba_color = clrs.to_rgba(color, alpha=0.2)
     patch.set_facecolor(color)
 
 
@@ -713,21 +658,21 @@ for median, color in zip(box['medians'], colors_list):
 # This is achieved by plotting only the W5E5 data again, but with dashed lines
 box_w5e5 = ax.boxplot([mb_base.B.values] * len(data), patch_artist=False, vert=False,
                       positions=np.arange(len(data), 0, -1),
-                      boxprops=dict(linestyle='--', color='black'),
-                      whiskerprops=dict(linestyle='--', color='black'),
-                      capprops=dict(linestyle='--', color='black'),
+                      boxprops=dict(linestyle=':', color='grey'),
+                      whiskerprops=dict(linestyle=':', color='none'),
+                      capprops=dict(linestyle=':', color='none'),
                       showfliers=False)
 
 # Set the median lines for the W5E5 boxplot to dashed black
 for median in box_w5e5['medians']:
-    median.set_linestyle('--')
-    median.set_color('black')
+    median.set_linestyle(':')
+    median.set_color('grey')
 
 # Identify the index of the W5E5 label (assuming it's the last one)
 y_labels = ax.get_yticklabels()
-y_labels = y_labels[:15]  # Set the W5E5 label to an empty string
+y_labels = y_labels[:13]  # Set the W5E5 label to an empty string
 y_ticks = ax.get_yticks()
-y_ticks = y_ticks[:15]  # Set the W5E5 label to an empty string
+y_ticks = y_ticks[:13]  # Set the W5E5 label to an empty string
 ax.set_yticks(y_ticks)
 ax.set_yticklabels(y_labels)
 
@@ -767,7 +712,8 @@ fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 i_path_base = os.path.join(sum_dir, 'specific_massbalance_mean_W5E5.000.csv')
 mb_base = pd.read_csv(i_path_base, index_col=0).to_xarray()
 
-ds = pd.read_csv(f"{wd_path}/region13_RGI_B_master.csv", index_col=0, header=0)
+ds = pd.read_csv(
+    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area_B.csv", index_col=0, header=0)
 mean_noirr = ds.groupby('rgi_id')['B_noirr'].mean().reset_index()
 mean_irr = ds.groupby('rgi_id')['B_irr'].mean().reset_index()
 
@@ -779,9 +725,9 @@ mean_noirr_delta_all = ds.groupby('rgi_id')[['B_noirr', 'B_delta']].mean(
 mean_noirr_delta = mean_noirr_delta_all.nlargest(54, 'B_delta')
 
 # make a ssubset for the glaciers with the largest change
-labels = ["NoIrr - 14 member avg: largest 10% $\Delta$"] + \
-    ["NoIrr - 14 member avg: A>1km$^2$"] + \
-    ["NoIrr - 14 member avg: all"] + ["Irr (W5E5.000)"]
+labels = ["NoIrr - 11 member avg: largest 10% $\Delta$"] + \
+    ["NoIrr - 11 member avg: A>1km$^2$"] + \
+    ["NoIrr - 11 member avg: all"] + ["Irr (W5E5.000)"]
 colors_list = ["orange"] + ["lightgreen"] + ["lightblue"] + ["darkgrey"]
 
 # # Plotting the main boxplot
@@ -834,21 +780,24 @@ ax.set_yticklabels(y_labels)
 # %% Cell 8D: Link the largest change glaciers in a plot
 
 # start from subset and match these to the cenlon, cenlats from the rgis
-rgis_complete = rgis.drop(columns=['rgi_id']).rename(
-    columns={'rgi_id_format': 'rgi_id'})
-df_delta = pd.merge(mean_noirr_delta_all, rgis_complete,
-                    on='rgi_id', how='inner')
+# rgis_complete = rgis#.drop(columns=['rgi_id']).rename(columns={'rgi_id_format': 'rgi_id'})
+# df_delta = pd.merge(mean_noirr_delta_all, rgis_complete,
+#                     on='rgi_id', how='inner')
 # df_delta = pd.merge(mean_noirr_delta, rgis_complete, on='rgi_id', how='inner') #for only 10% changing largest glaciers
 
-df_irr = pd.merge(mean_irr, rgis_complete, on='rgi_id', how='inner')
+master_df = pd.read_csv(
+    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area_B.csv")
+threshold = master_df['B_delta'].quantile(
+    0.95)  # only top 10% largest changes in B
+master_df = master_df[master_df['B_delta'] >= threshold]
+# df_irr = pd.merge(mean_irr, rgis_complete, on='rgi_id', how='inner')
 
-datasets = [df_delta, df_irr]
+# datasets = [df_delta, df_irr]
 
 shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
 shp = gpd.read_file(shapefile_path)
 target_crs = 'EPSG:4326'
 shp = shp.to_crs(target_crs)
-
 
 fig, ax = plt.subplots(figsize=(10, 7), subplot_kw={
                        'projection': ccrs.PlateCarree()})
@@ -859,24 +808,25 @@ ax.add_feature(cfeature.BORDERS, linestyle='solid', color='grey')
 ax.add_feature(cfeature.COASTLINE)
 
 # Include HMA shapefile
-shp.plot(ax=ax, edgecolor='red', linewidth=0, facecolor='bisque')
+shp.plot(ax=ax, edgecolor='black', linewidth=0, facecolor='bisque')
 
 # Create a custom diverging colormap: red for negative, white for zero, blue for positive
-colors = [(1, 0, 0), (1, 1, 1), (0, 0, 1)]  # Red -> White -> Blue
+colors = [(1, 1, 1), (0, 0, 1)]  # Red -> White -> Blue
 custom_cmap = LinearSegmentedColormap.from_list(
-    'red_white_blue', colors, N=256)
+    'white_blues', colors, N=256)
 
 # Normalize with zero centered (TwoSlopeNorm sets the midpoint to zero)
-norm = TwoSlopeNorm(vmin=df_delta['B_delta'].min(
-), vcenter=0, vmax=df_delta['B_delta'].max())
+vmin = 0  # master_df['B_delta'].min()
+vmax = master_df['B_delta'].quantile(0.9)
+norm = TwoSlopeNorm(vmin=vmin, vcenter=(vmin+vmax)/2, vmax=vmax)
 
 # Add scatter plot for the locations
-sc = ax.scatter(df_delta['cenlon'], df_delta['cenlat'], s=df_delta['area_km2']*20,
-                c=df_delta['B_delta'], cmap=custom_cmap, norm=norm, edgecolor='k', alpha=0.7)
+sc = ax.scatter(master_df['cenlon'], master_df['cenlat'], s=master_df['B_irr'],
+                c=master_df['B_delta'], cmap=custom_cmap, norm=norm, edgecolor='k', alpha=0.7)
 
 # Add a colorbar for the B_delta values
 cbar = plt.colorbar(sc, ax=ax)
-cbar.set_label('$\Delta$ B (Irr - NoIrr)')
+cbar.set_label('$\Delta$ B (Irr-NoIrr)')
 
 
 # Create a size legend manually
@@ -947,12 +897,11 @@ ds_base = utils.compile_run_output(
 
 # %% Cell 10: Create output plots for Area and volume
 
+master_ds = pd.read_csv(
+    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area.csv")
+hugo_area = master_ds.Area.sum()
 
-# def plot_volume_area_evolution_over_time_combined(averaged):
-
-# timeframe = "monthly"
-# members = [3, 4, 6, 1, 1]
-models_test = ["E3SM", "CESM2",  "IPSL-CM6"]
+# define the variables for plotting
 variables = ["volume", "area"]
 factors = [10**-9, 10**-6]
 
@@ -964,57 +913,55 @@ variable_axes = ["Volume [km$^3$]", "Area [km$^2$]"]
 for v, var in enumerate(variables):
     print(var)
     # create a new plot for both area and volume
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))  # create a new figure
 
-    # create a timeseries for all the models
+    # create a timeseries for all the model members to add the data, needed to calculate averages later
     member_data = []
 
+    # load and plot the baseline data
     baseline_path = os.path.join(
         wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
     baseline = xr.open_dataset(baseline_path)
-    ax.plot(baseline["time"], baseline[var].sum(dim="rgi_id") *
-            factors[v], label="W5E5.000", color=colors["W5E5"][0], linewidth=2, zorder=15)
+    ax.plot(baseline["time"], baseline[var].sum(dim="rgi_id") * factors[v],
+            label="W5E5.000", color=colors["W5E5"][0], linewidth=2, zorder=15)
 
+    # loop through all the different model x member combinations
     for m, model in enumerate(models_shortlist):
-        # if averaged == True:
-        #     # if averaged only include the sample ids on ending 000
-        #     members = [1, 1, 1, 1]
-        # else:
-        # if averaged only include the sample ids on ending 000
-        # members_test = [2, 3, 1]  # , 5]
         for i in range(members_averages[m]):
 
+            # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
+            # IPSL-CM6 only has 1 member, so the sample_id must end with 000
             if members_averages[m] > 1:
                 i += 1
 
             sample_id = f"{model}.00{i}"
-            print(sample_id)
 
+            # load and plot the data from the climate output run
             climate_run_opath = os.path.join(
                 sum_dir, f'climate_run_output_perturbed_{sample_id}.nc')
-            # open the dataset with the climate run output from OGGM, using all the gdirs
             climate_run_output = xr.open_dataset(climate_run_opath)
-
             ax.plot(climate_run_output["time"], climate_run_output[var].sum(dim="rgi_id") * factors[v],
                     label=sample_id, color=colors[model][i], linewidth=2, linestyle="dotted")
 
-            # total reg 13 change volume over time by member
+            # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
             member_data.append(climate_run_output[var].sum(
                 dim="rgi_id").values * factors[v])
-            print(climate_run_output[var].sum(
-                dim="rgi_id").values[1] * factors[v])
 
-    if len(member_data) > 0:
-        stacked_member_data = np.stack(member_data)
+    # stack the member data
+    stacked_member_data = np.stack(member_data)
 
-        # average over the 10 members
-        mean_values = np.mean(stacked_member_data, axis=0).flatten()
-        ax.plot(climate_run_output["time"].values, mean_values,
-                color="black", linestyle='dashed', lw=2, label="14-member average")
-        min_values = np.min(stacked_member_data, axis=0).flatten()
-        max_values = np.max(stacked_member_data, axis=0).flatten()
-        ax.fill_between(climate_run_output["time"].values, min_values, max_values,
-                        color="lightblue", alpha=0.3, label=f"14-member range", zorder=16)
+    # calculate and plot volume/area 11-member mean
+    mean_values = np.mean(stacked_member_data, axis=0).flatten()
+    ax.plot(climate_run_output["time"].values, mean_values,
+            color="black", linestyle='dashed', lw=2, label="11-member average")
+    # if var=="area":
+    #     ax.scatter([1985.], [hugo_area], s=20, marker="x", color="black",label="Hugonnet Area")
+
+    # calculate and plot volume/area 11-member min and max for ribbon
+    min_values = np.min(stacked_member_data, axis=0).flatten()
+    max_values = np.max(stacked_member_data, axis=0).flatten()
+    ax.fill_between(climate_run_output["time"].values, min_values, max_values,
+                    color="lightblue", alpha=0.3, label=f"11-member range", zorder=16)
 
     # Set labels and title for the combined plot
     ax.set_ylabel(variable_axes[v])
@@ -1027,23 +974,16 @@ for v, var in enumerate(variables):
                bbox_to_anchor=(0.5, -0.15), ncol=4)
     plt.tight_layout()
 
+    # specify and create a folder for saving the data (if it doesn't exists already) and save the plot
     o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/0{v + 1}. {variable_names[v]}/00. Combined"
     os.makedirs(o_folder_data, exist_ok=True)
     o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.combined.png"
     plt.savefig(o_file_name, bbox_inches='tight')
 
-    # return
-
-
-# Call the function with appropriate parameters
-# plot_volume_area_evolution_over_time_combined(False)
-
 
 # %% Load the hugonnet data from oggm
 
 rgi_id_sel = hugo_ds_filtered['RGI-ID'].values
-folder_path = '/Users/magaliponds/Documents/00. Programming'
-wd_path = f'{folder_path}/02. Modelled perturbation-glacier interactions - regional analysis/'
 
 # OGGM options
 oggm.cfg.initialize(logging_level='WARNING')
@@ -1097,16 +1037,16 @@ mb_geo = mb_geo.sel(mb_geo.rgiid.isin(rgis['rgi_id_format']), drop=True)
 
 # bin_centers = (bins[:-1] + bins[1:]) / 2
 # params, covariance = curve_fit(gaussian, bin_centers, n, p0=[
-#                                np.mean(mb_base.B), np.std(mb_base.B), np.max(n)])
+#                                 np.mean(mb_base.B), np.std(mb_base.B), np.max(n)])
 # params_geo, covariance_geo = curve_fit(gaussian, bin_centers, n, p0=[
-#                                        np.mean(mb_geo.B), np.std(mb_geo.B), np.max(n)])
+#                                         np.mean(mb_geo.B), np.std(mb_geo.B), np.max(n)])
 
 # x = np.linspace(mb_base.B.min(), mb_base.B.max(), 100)
 # x_geo = np.linspace(mb_geo.B.min(), mb_geo.B.max(), 100)
 # plt.plot(x, gaussian(x, *params),
-#          color=colors["W5E5"][0], label="Gaussian fit W5E5.000", zorder=(members[m]+1))
+#           color=colors["W5E5"][0], label="Gaussian fit W5E5.000", zorder=(members[m]+1))
 # plt.plot(x, gaussian(x_geo, *params_geo),
-#          color=colors["W5E5"][0], label="Gaussian fit Geodetic MB", zorder=(members[m]+1), linestyle="dashed")
+#           color=colors["W5E5"][0], label="Gaussian fit Geodetic MB", zorder=(members[m]+1), linestyle="dashed")
 
 # plt.legend(loc="upper left", bbox_to_anchor=(0, 1), ncols=1)
 # plt.xlabel("Mean specific mass balance[mm w.e. yr$^{-1}$]")
@@ -1118,16 +1058,16 @@ mb_geo = mb_geo.sel(mb_geo.rgiid.isin(rgis['rgi_id_format']), drop=True)
 #     0.01, 0.70), xycoords='axes fraction', fontsize=10, verticalalignment='top')
 
 # plt.show()
-# %% Make scatter plot with RGI data
-members = [1, 3, 4, 6, 1, 1]
-# members = [1, 1, 1, 1, 1]
 
 # %% Correlation curve
 
-members = [1, 1, 1, 1]
-models = ["W5E5", "E3SM", "CESM2", "CNRM"]  # , "IPSL-CM6"]
+members = [1, 1, 1, 1, 1]
+models = ["W5E5", "E3SM", "CESM2", "CNRM", "IPSL-CM6"]
 
-plt.figure(figsize=(8, 4))
+hugo_ds_filtered = pd.read_csv(
+    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area.csv")
+
+plt.figure(figsize=(10, 6))
 
 # plt.scatter(mb_base.rgi_id, mb_base.B,color=colors["W5E5"][0])
 for m, model in enumerate(models):
@@ -1138,21 +1078,23 @@ for m, model in enumerate(models):
 
         if model == "W5E5":
             i_path_base = os.path.join(
-                sum_dir, 'specific_massbalance_mean_W5E5.000.csv')
+                sum_dir, 'specific_massbalance_mean_extended_W5E5.000_2000_2020.csv')
             mb = pd.read_csv(i_path_base, index_col=0).to_xarray()
+
         else:
             i_path = os.path.join(
                 sum_dir, f'specific_massbalance_mean_{sample_id}.csv')
             mb = pd.read_csv(i_path, index_col=0).to_xarray()
 
+        mb['B'] = mb['B']/1000
         mb['B'].attrs['units'] = "m w.e. yr-1"
         mb['B'].attrs['standard_name'] = "Mean specific Mass balance 2000-2020"
 
-        hugo_ds = hugo_ds_filtered[['RGI-ID', 'B']].set_index(index='RGI-ID')
-        hugo_ds = hugo_ds.rename({'index': 'rgi_id'})
+        hugo_ds = hugo_ds_filtered[['rgi_id', 'B']
+                                   ].set_index('rgi_id').to_xarray()
 
         hugo_ds = hugo_ds.where(hugo_ds.rgi_id.isin(mb.rgi_id), drop=True)
-        hugo_ds['B'] = hugo_ds.B*1000
+        hugo_ds['B'] = hugo_ds.B
 
         hugo_df = hugo_ds.to_dataframe()
         mb_df = mb.to_dataframe()
@@ -1161,85 +1103,190 @@ for m, model in enumerate(models):
 
         cor_ds = cor_df.to_xarray()
         correlation = xr.corr(cor_ds['B_oggm'], cor_ds['B_hugo']).round(2)
-        rmse = np.sqrt(np.mean((cor_ds['B_oggm'] - cor_ds['B_hugo']) ** 2))
+        rmse = np.sqrt(
+            np.mean((cor_ds['B_oggm'] - cor_ds['B_hugo']) ** 2)).values.round(2)
 
         # cor_ds = xr.merge([mb_ds, hugo_ds], dim='rgi_id')
         if m == 0 and member == 0:
             plt.plot(cor_ds['B_hugo'], cor_ds['B_hugo'], color='k',
                      label="correlation: 1", zorder=(sum(members)+1))
-
-        plt.scatter(cor_ds['B_hugo'], cor_ds['B_oggm'], s=5, color=colors[model]
-                    [member], label=f'{sample_id}, correlation: {correlation.values}, rmse: {np.round(rmse.values,2)}', alpha=0.5)
-
-        # plt.text(-1.4,0.2, f'Correlation coefficient: {correlation.values}')
-
-        plt.ylabel('Modelled mass balance  (mm w.e. yr$^{-1}$)')
-        plt.xlabel('Geodetic mass balance (mm w.e. yr$^{-1}$)')
-
-
-plt.legend()
-
-# plt.scatter(mb_base.rgi_id, mb_base.B, color=colors[model][member])
-
-plt.show()
-
-# %% Extended W5E% to geodetic
-
-# %% Correlation curve
-
-members = [1, 1, 1, 1]
-models = ["W5E5"]  # , "E3SM", "CESM2", "CNRM"]  # , "IPSL-CM6"]
-
-plt.figure(figsize=(7, 4))
-
-# plt.scatter(mb_base.rgi_id, mb_base.B,color=colors["W5E5"][0])
-for m, model in enumerate(models):
-    for member in range(members[m]):
-        print(model)
-
-        sample_id = f"{model}.00{member}"
 
         if model == "W5E5":
-            i_path_base = os.path.join(
-                sum_dir, 'specific_massbalance_mean_extended_W5E5.000.csv')
-            mb = pd.read_csv(i_path_base, index_col=0).to_xarray()
+            plt.scatter([cor_ds['B_hugo']], [cor_ds['B_oggm']], s=5, color=colors[model][member],
+                        label=f'{sample_id} (2000-2020), correlation: {correlation.values}, rmse: {rmse}', alpha=1, zorder=5)
         else:
-            i_path = os.path.join(
-                sum_dir, f'specific_massbalance_mean_{sample_id}.csv')
-            mb = pd.read_csv(i_path, index_col=0).to_xarray()
-
-        mb['B'].attrs['units'] = "m w.e. yr-1"
-        mb['B'].attrs['standard_name'] = "Mean specific Mass balance 2000-2020"
-
-        hugo_ds = hugo_ds_filtered[['RGI-ID', 'B']].set_index(index='RGI-ID')
-        hugo_ds = hugo_ds.rename({'index': 'rgi_id'})
-
-        hugo_ds = hugo_ds.where(hugo_ds.rgi_id.isin(mb.rgi_id), drop=True)
-        hugo_ds['B'] = hugo_ds.B*1000
-
-        hugo_df = hugo_ds.to_dataframe()
-        mb_df = mb.to_dataframe()
-        cor_df = pd.merge(mb_df, hugo_df, on='rgi_id',
-                          suffixes=('_oggm', '_hugo'))
-
-        cor_ds = cor_df.to_xarray()
-        correlation = xr.corr(cor_ds['B_oggm'], cor_ds['B_hugo']).round(2)
-
-        # cor_ds = xr.merge([mb_ds, hugo_ds], dim='rgi_id')
-        if m == 0 and member == 0:
-            plt.plot(cor_ds['B_hugo'], cor_ds['B_hugo'], color='k',
-                     label="correlation: 1", zorder=(sum(members)+1))
-
-        plt.scatter(cor_ds['B_hugo'], cor_ds['B_oggm'], s=5, color=colors[model]
-                    [member], label=f'{sample_id}, correlation: {correlation.values}', alpha=0.5)
+            plt.scatter([cor_ds['B_hugo']], [cor_ds['B_oggm']], s=5, color=colors[model][member],
+                        label=f'{sample_id}  (1985-2014), correlation: {correlation.values}, rmse: {rmse}', alpha=0.3)
 
         # plt.text(-1.4,0.2, f'Correlation coefficient: {correlation.values}')
 
         plt.ylabel('Modelled mass balance  (m w.e. yr$^{-1}$)')
-        plt.xlabel('Geodetic mass balance (m w.e. yr$^{-1}$)')
+        plt.xlabel('Geodetic mass balance (2000-2020) (m w.e. yr$^{-1}$)')
 plt.legend()
 
 # plt.scatter(mb_base.rgi_id, mb_base.B, color=colors[model][member])
 
 plt.show()
 #
+
+# %% Correlation curve - for 2000-2010 - double plot for W5E5
+
+members = [1, 1, 1, 1, 1]
+models = ["W5E5", "E3SM", "CESM2", "CNRM"]  # , "IPSL-CM6"]
+
+hugo_ds_filtered = pd.read_csv(
+    f"{wd_path}/region13_RGI_master_rgi_hugo_filtered_area.csv")
+
+plt.figure(figsize=(10, 6))
+
+# plt.scatter(mb_base.rgi_id, mb_base.B,color=colors["W5E5"][0])
+for m, model in enumerate(models):
+    for member in range(members[m]):
+        print(model)
+
+        sample_id = f"{model}.00{member}"
+
+        if model == "W5E5":
+            i_path_base = os.path.join(
+                sum_dir, 'specific_massbalance_mean_extended_W5E5.000_2000_2020.csv')
+            mb_ext = pd.read_csv(i_path_base, index_col=0).to_xarray()/1000
+
+        # else:
+        i_path = os.path.join(
+            sum_dir, f'specific_massbalance_mean_{sample_id}_2000_2010.csv')
+        mb = pd.read_csv(i_path, index_col=0).to_xarray()
+
+        mb['B'] = mb['B']/1000
+        mb['B'].attrs['units'] = "m w.e. yr-1"
+        mb['B'].attrs['standard_name'] = "Mean specific Mass balance 2000-2020"
+
+        hugo_ds = hugo_ds_filtered[['rgi_id', 'B']
+                                   ].set_index('rgi_id').to_xarray()
+
+        hugo_ds = hugo_ds.where(hugo_ds.rgi_id.isin(mb.rgi_id), drop=True)
+        hugo_ds['B'] = hugo_ds.B
+
+        hugo_df = hugo_ds.to_dataframe()
+        mb_df = mb.to_dataframe()
+        cor_df = pd.merge(mb_df, hugo_df, on='rgi_id',
+                          suffixes=('_oggm', '_hugo'))
+
+        mb_df_ext = mb_ext.to_dataframe()
+        mb_ext_df = mb_ext.to_dataframe()
+        cor_df_ext = pd.merge(mb_df_ext, hugo_df, on='rgi_id',
+                              suffixes=('_oggm', '_hugo'))
+        cor_ds_ext = cor_df_ext.to_xarray()
+        correlation_ext = xr.corr(
+            cor_ds_ext['B_oggm'], cor_ds_ext['B_hugo']).round(2)
+        rmse_ext = np.sqrt(
+            np.mean((cor_ds_ext['B_oggm'] - cor_ds_ext['B_hugo']) ** 2)).values.round(2)
+
+        cor_ds = cor_df.to_xarray()
+        correlation = xr.corr(cor_ds['B_oggm'], cor_ds['B_hugo']).round(2)
+        rmse = np.sqrt(
+            np.mean((cor_ds['B_oggm'] - cor_ds['B_hugo']) ** 2)).values.round(2)
+
+        # cor_ds = xr.merge([mb_ds, hugo_ds], dim='rgi_id')
+        if m == 0 and member == 0:
+            plt.plot(cor_ds['B_hugo'], cor_ds['B_hugo'], color='grey',
+                     label="correlation: 1", zorder=(sum(members)+1))
+
+        if model == "W5E5":
+            plt.scatter([cor_ds['B_hugo']], [cor_ds['B_oggm']], s=5, color="grey",
+                        label=f'{sample_id} (2000-2020), correlation: {correlation_ext.values}, rmse: {rmse_ext}', alpha=1, zorder=5)
+            plt.scatter([cor_ds_ext['B_hugo']], [cor_ds_ext['B_oggm']], s=5, color=colors[model][member],
+                        label=f'{sample_id} (2000-2010), correlation: {correlation.values}, rmse: {rmse}', alpha=1, zorder=5)
+        else:
+            plt.scatter([cor_ds['B_hugo']], [cor_ds['B_oggm']], s=5, color=colors[model][member],
+                        label=f'{sample_id}  (1985-2014), correlation: {correlation.values}, rmse: {rmse}', alpha=0.3)
+
+        # plt.text(-1.4,0.2, f'Correlation coefficient: {correlation.values}')
+
+        plt.ylabel('Modelled mass balance  (m w.e. yr$^{-1}$)')
+        plt.xlabel('Geodetic mass balance (2000-2010) (m w.e. yr$^{-1}$)')
+plt.legend()
+
+# plt.scatter(mb_base.rgi_id, mb_base.B, color=colors[model][member])
+
+plt.show()
+#
+
+# %% Plot timeseries of mass balance agains hugonnet data
+
+modelled_perturbed_mean = []
+fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+
+# loop through all the different models and members
+for m, model in enumerate(models):
+    for member in range(members[m]):
+        # creat a sample id for each modelxmember combi to access the data
+        sample_id = f"{model}.00{member}"
+        print(sample_id)
+        mb_timeseries = pd.read_csv(os.path.join(
+            sum_dir, f'specific_massbalance_timeseries_{sample_id}.csv'))  # load the mb timeseries (1985-2014 for all models, except W5E5 (1985-2020))
+        pivot_df = mb_timeseries.pivot_table(
+            index='rgi_id', columns='Year', values='Mass_Balance')  # pivot the datasets such that years are now columns
+        years = np.arange(
+            float(mb_timeseries['Year'].min()), mb_timeseries['Year'].max()+1, 1)  # create a years list based on min/max years in dataset
+
+        # set model parameters depending on the model
+        if model in ("W5E5", "IPSL-CM6") or member >= 1:
+            if model == "W5E5":
+                linestyle = "-"
+                color = colors[model][member]
+                linewidth = 2
+                label = f"Modelled Irr (W5E5)"
+
+            else:
+                linestyle = ":"
+                # add values of all individual members to create one mean value
+                modelled_perturbed_mean.append(pivot_df.mean().values/1000)
+                color = "grey"
+                linewidth = 1.5
+                if sample_id == "IPSL-CM6.000":
+                    label = "Modelled NoIrr, individual member"
+                else:
+                    label = None
+            # plot the timeseries for all members and W5E5, including labels, colors and lw as stated above
+            ax.plot(years, pivot_df.mean()/1000, color=color,  # colors[model][member],
+                    linewidth=linewidth, zorder=10, label=label, linestyle=linestyle)
+
+        # reload dataset for W5E% - in case extended
+        if model == "W5E5":
+            mb_timeseries = pd.read_csv(os.path.join(
+                sum_dir, f'specific_massbalance_timeseries_{sample_id}.csv'))
+
+            # Keep only columns with year names greater than 2000 and calculate mean mb over this period
+            mb_2020 = pivot_df.loc[:, pivot_df.columns.astype(int) > 2000]
+            mean_mb_2020 = mb_2020.mean(axis=0).mean()/1000
+            # plot W5E5-baseline average
+            ax.plot([2000, 2020], [mean_mb_2020, mean_mb_2020], color=colors["W5E5"]
+                    [0], linestyle='dashed', label='Modelled Irr (W5E5): mean 2000-2020')
+
+stacked_member_data = np.stack(modelled_perturbed_mean)
+mean_values = np.mean(stacked_member_data, axis=0).flatten()
+min_values = np.min(stacked_member_data, axis=0).flatten()
+max_values = np.max(stacked_member_data, axis=0).flatten()
+
+ax.plot(years, mean_values, "grey", linewidth=2, zorder=10,
+        label=f"Modelled NoIrr, 11-member average", linestyle=linestyle)
+ax.fill_between(years, min_values, max_values, color="lightgrey",
+                alpha=0.6, label=f"Modelled NoIrr, 11-member range", zorder=0)
+
+
+# load the geodetic mass balance
+mb_geodetic = utils.get_geodetic_mb_dataframe()
+sel = mb_geodetic.loc[mb_geodetic.index.isin(
+    mb_timeseries.rgi_id)].set_index('period')
+# download the mb and error for Hugonnet
+_mb, _err = sel.loc['2000-01-01_2020-01-01'][['dmdtda', 'err_dmdtda']].mean()
+
+ax.plot([2000, 2020], [_mb, _mb], color='mediumslateblue',
+        label='Geodetic (Hugonnet): mean 2000-2020', zorder=0)
+ax.fill_between([2000, 2020], [_mb-_err, _mb-_err],
+                [_mb+_err, _mb+_err], alpha=0.5, color='mediumslateblue', zorder=0, label='Geodetic (Hugonnet): error bounds $\pm$1$\sigma$ 2000-2020')
+
+ax.set_ylabel("Specific Mass Balance (m w.e. yr$^{-1}$")
+ax.set_xlabel("Year")
+ax.set_title("RGI reg. 13, regional average Specific Mass Balance")
+plt.legend(loc="lower center", bbox_to_anchor=(0.5, -0.3), ncols=3)

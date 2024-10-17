@@ -6,22 +6,10 @@ Created on Wed Jul  3 15:36:52 2024
 
 @author: magaliponds
 
-This code runs through the following operations:
-    
-SCOPE: Plot histograms for larger sets, comparing OGGM modelled to Hugonnet data
-    Cell 1a: Load the Hugonnet data
-    Cell 1b: Load RGI dataset and reformat RGI-notation
-    Cell 2: Filter the Hugonnet data according to availability in the RGI   
-    Cell 3a: Plot histogram from Hugonnet input data (# glaciers vs B)
-    Cell 3b: Plot histogram from Hugonnet input data (# glaciers vs B)
-    Cell 4a: gdirs_3r for the region (based on Hugonnet sample glacier dataset)
-    Cell 4b: Save gdirs_3r from OGGM
-    Cell 4c: Load gdirs_3r from OGGM (saved in 4b)
-    Cell 5: Run the MB model for the glaciers 
-    Cell 6: Create a histogram with the MB data
-    Cell 7: Analyse glacier statistics
+This script runs makes plots of the selected 3 regions (13-14-15) with Areas larger than 5km2 (3r_a5)
       
 """
+
 # -*- coding: utf-8 -*-import oggm
 # from OGGM_data_processing import process_perturbation_data
 import concurrent.futures
@@ -64,6 +52,7 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/src/03. Glacier simulations"
 sys.path.append(function_directory)
 
+# %% Cell 1: Set base parameters
 
 colors = {
     "W5E5": ["#000000"],  # "#000000"],  # Black
@@ -82,559 +71,17 @@ models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "W5E5"]
 models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM"]
 timeframe = "monthly"
 
-# %% Cell 0: Initialize OGGM with the preferred model parameter set up
-folder_path = '/Users/magaliponds/Documents/00. Programming'
-wd_path = f'{folder_path}/03. Modelled perturbation-glacier interactions - R13-15 A+5km2/'
-os.makedirs(wd_path, exist_ok=True)
-cfg.PATHS['working_dir'] = utils.mkdir(wd_path, reset=False)
-
-# make a sum dir
-sum_dir = os.path.join(wd_path, 'summary')
-os.makedirs(sum_dir, exist_ok=True)
-
-# make a logging directory
-log_dir = os.path.join(wd_path, "log")
-os.makedirs(log_dir, exist_ok=True)
-
-# Make a pkl directory
-pkls = os.path.join(wd_path, "pkls")
-os.makedirs(pkls, exist_ok=True)
-
-cfg.initialize(logging_level='WARNING')
-cfg.PARAMS['baseline_climate'] = "GSWP3-W5E5"
-
-
-cfg.PARAMS['use_multiprocessing'] = False
-cfg.PARAMS['store_model_geometry'] = True
 y0_clim = 1985
 ye_clim = 2014
 
-# %% Download all the regional shapefiles
 
-regions = [13, 14, 15]  # The RGI regions you want to process
+fig_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/'
+folder_path = '/Users/magaliponds/Documents/00. Programming'
+wd_path = f'{folder_path}/03. Modelled perturbation-glacier interactions - R13-15 A+5km2/'
+sum_dir = os.path.join(wd_path, 'summary')
 
-rgi_files = []
-for region in regions:
-    rgi_file = utils.get_rgi_region_file(region=region)
-    rgi_files.append(rgi_file)
 
-rgi_ids = []
-for fr in rgi_files:
-    gdf = gpd.read_file(fr)
-    rgi_ids.append(gdf['RGIId'].values)
-
-# %% Flatten the list of all the rgi_ids
-# Flatten the list of arrays and convert all elements to strings
-rgi_ids_flattened = [item for sublist in rgi_ids for item in sublist]
-
-print(rgi_ids_flattened)
-
-
-# %% Cell 1a: ONLY DOWNLOAD ONCE (takes a long time) Get OGGM gdirs_3r for the based on Hugonnet sample glacier dataset
-
-download_gdirs = False
-
-if download_gdirs == True:
-
-    # OGGM options
-    oggm.cfg.PATHS['working_dir'] = utils.mkdir(wd_path, reset=False)
-    oggm.cfg.PARAMS['store_model_geometry'] = True
-    cfg.PARAMS['use_multiprocessing'] = True
-
-    gdirs = []
-    with tqdm(total=len(rgi_ids_flattened), desc="Initializing Glacier Directories", mininterval=1.0) as pbar:
-        for r, rgi_id in enumerate(rgi_ids_flattened):
-            # Print RGI ID to check its correctness
-            print(f"Processing RGI ID: {rgi_id}")
-            # Perform your processing here
-            new_gdirs = workflow.init_glacier_directories(
-                [rgi_id],
-                prepro_base_url=DEFAULT_BASE_URL,
-                from_prepro_level=4,
-                prepro_border=80
-            )
-            gdirs.extend(new_gdirs)
-
-            # Update tqdm progress bar
-            pbar.update(1)
-
-# rename gdir file to distinguish from other scripts
-gdirs_3r = gdirs
-# %% Cell 1b: Save gdirs_3r from OGGM as a pkl file (Save at the end of every working session)
-
-# Save each gdir individually
-for gdir in gdirs:
-    gdir_path = os.path.join(pkls, f'{gdir.rgi_id}.pkl')
-    with open(gdir_path, 'wb') as f:
-        pickle.dump(gdir, f)
-
-# %% Cell 1c: Load gdirs_3r from pkl (fastest way to get started)
-
-wd_path_pkls = f'{wd_path}/pkls/'
-
-gdirs_3r = []
-for filename in os.listdir(wd_path_pkls):
-    if filename.endswith('.pkl'):
-        # f'{gdir.rgi_id}.pkl')
-        file_path = os.path.join(wd_path_pkls, filename)
-        with open(file_path, 'rb') as f:
-            gdir = pickle.load(f)
-            gdirs_3r.append(gdir)
-
-# # print(gdirs)
-# %% Cell 2a: Filter the gdirs list where the area is greater than 5 km^2
-
-# Pre-load all areas into memory first with a progress bar
-areas = [gdir.rgi_area_km2 for gdir in tqdm(
-    gdirs_3r, desc="Loading glacier areas")]
-
-# Filter glaciers with area > 5 km², with a progress bar and total set
-gdirs_3r_a5 = [gdir for gdir, area in tqdm(zip(gdirs_3r, areas), total=len(
-    gdirs_3r), desc="Filtering glaciers") if area > 5]
-# %% Cell 2b: Save the subset of gdirs with area larger than 5km2
-pkls_subset = os.path.join(wd_path, "pkls_subset")
-os.makedirs(pkls_subset, exist_ok=True)
-
-# Save each gdir individually
-for gdir in gdirs_3r_a5:
-    gdir_path = os.path.join(pkls_subset, f'{gdir.rgi_id}.pkl')
-    with open(gdir_path, 'wb') as f:
-        pickle.dump(gdir, f)
-
-
-# %% Cell 3: Create a dataset that contains Gdir Area, volume, rgi date and rgi ID
-
-# only for glaciers with an area larger than 5
-# Initialize lists to store output
-rgi_data = []
-count = 0
-# Iterate through each glacier directory
-for gdir in gdirs_3r:
-    count += 1
-    print((count*100)/len(gdirs_3r))  # show progress in percentage
-    try:
-        # Create a temporary dictionary to hold data for this glacier
-        temp_data = {
-            'rgi_id': gdir.rgi_id,  # RGI ID
-            'rgi_region': gdir.rgi_region,  # RGI region
-            'rgi_subregion': gdir.rgi_subregion,  # RGI subregion
-            'cenlon': gdir.cenlon,
-            'cenlat': gdir.cenlat,
-            'rgi_date': gdir.rgi_date,  # Validity date
-            'rgi_area_km2': gdir.rgi_area_km2}  # Area corresponding to RGI date
-
-        # Load the model diagnostics
-        with xr.open_dataset(gdir.get_filepath('model_diagnostics', filesuffix="_historical")) as ds:
-            vol = ds.volume_m3[1]  # Use the most relevant volume data
-            temp_data['rgi_volume_km3'] = vol.values * 10**-9  # Convert to km³
-
-        # If no error, append the temp_data to the final list
-        rgi_data.append(temp_data)
-
-    except Exception as e:
-        # Print error message for debugging
-        print(f"Error processing {gdir.rgi_id}: {e}")
-        # Do not append the incomplete data
-
-# Create DataFrame if data was collected
-if rgi_data:
-    df_3r = pd.DataFrame(rgi_data)
-else:
-    # Empty DataFrame if no data
-    df_3r = pd.DataFrame(columns=['rgi_id', 'rgi_region', 'rgi_subregion', 'cenlon', 'cenlat',
-                                  'rgi_date', 'rgi_area_km2', 'rgi_volume_km3'])
-
-# Output the DataFrame
-
-df_3r.to_csv(f"{wd_path}/master_gdirs_r3_rgi_date_A_V.csv")
-print(df_3r.head)
-
-# %% Cell 3b: Create a dataset that contains Gdir Area, volume, rgi date and rgi ID - parallel processing
-
-# Initialize variables
-rgi_data = []
-count = 0
-total_glaciers = len(gdirs_3r)
-save_interval = 100  # Save every 100 glaciers processed
-temp_save_path = f"{wd_path}/temp_rgi_data.csv"
-
-# Function to process a single glacier
-
-
-def process_glacier(gdir):
-    try:
-        temp_data = {
-            'rgi_id': gdir.rgi_id,
-            'rgi_region': gdir.rgi_region,
-            'rgi_subregion': gdir.rgi_subregion,
-            'cenlon': gdir.cenlon,
-            'cenlat': gdir.cenlat,
-            'rgi_date': gdir.rgi_date,
-            'rgi_area_km2': gdir.rgi_area_km2
-        }
-
-        # Load model diagnostics
-        with xr.open_dataset(gdir.get_filepath('model_diagnostics', filesuffix="_historical")) as ds:
-            vol = ds.volume_m3[1]
-            temp_data['rgi_volume_km3'] = vol.values * 10**-9
-
-        return temp_data
-    except Exception as e:
-        print(f"Error processing {gdir.rgi_id}: {e}")
-        return None
-
-# Function to save data periodically
-
-
-def save_data(data, path):
-    df = pd.DataFrame(data)
-    if os.path.exists(path):
-        df.to_csv(path, mode='a', header=False,
-                  index=False)  # Append if file exists
-    else:
-        df.to_csv(path, index=False)  # Create new file if not exists
-    print(f"Progress saved to {path}")
-
-# Function to update progress
-
-
-def show_progress(future):
-    global count, rgi_data
-    count += 1
-    result = future.result()
-    if result:
-        rgi_data.append(result)
-
-    # Save periodically
-    if count % save_interval == 0:
-        save_data(rgi_data, temp_save_path)
-        rgi_data = []  # Clear memory after saving
-    # Check if we should print progress (every 1%)
-    if count % (total_glaciers // 100) == 0:
-        print(f"Progress: {(count / total_glaciers) * 100:.2f}%")
-
-
-# Use ThreadPoolExecutor for parallel processing
-with concurrent.futures.ThreadPoolExecutor() as executor:
-    futures = {executor.submit(process_glacier, gdir)
-                               : gdir for gdir in gdirs_3r}
-    for future in concurrent.futures.as_completed(futures):
-        show_progress(future)
-
-# Final save at the end of processing
-if rgi_data:  # Save any remaining data
-    save_data(rgi_data, temp_save_path)
-
-
-# %% Cell 3: Plot total cumulative volume vs area (ascending)
-
-# Sort the dataframe by area in descending order and rename to df_sorted
-df_sorted = df_3r.sort_values(by='rgi_area_km2', ascending=False)
-
-# Calculate the cumulative volume
-df_sorted['cumulative_volume_km3'] = df_sorted['rgi_volume_km3'].cumsum()
-
-# Calculate the total volume and area
-total_area = df_sorted['rgi_area_km2'].sum()
-total_volume = df_sorted['rgi_volume_km3'].sum()
-total_glaciers = len(df_sorted)
-
-# Filter glaciers with area > 10 km²
-glaciers_over_5km2 = df_sorted[df_sorted['rgi_area_km2'] > 5]
-
-# Calculate the percentage of glaciers with area > 10 km²
-percentage_glaciers_over_5km2 = len(
-    glaciers_over_5km2) / len(df_sorted) * 100
-
-# Calculate the percentage of total area and total volume for glaciers with area > 10 km²
-percentage_area_over_5km2 = glaciers_over_5km2['rgi_area_km2'].sum(
-) / total_area * 100
-percentage_volume_over_5km2 = glaciers_over_5km2['rgi_volume_km3'].sum(
-) / total_volume * 100
-
-# Create the figure and axis
-fig, ax1 = plt.subplots(figsize=(10, 6))
-
-# Plot glacier area as a line chart
-ax1.set_ylabel('Area (km²)', color='black')
-ax1.set_xlabel('# of glaciers', color='black')
-ax1.set_yscale('log')
-
-# Create color conditions: orange if area < 10 km², blue otherwise
-colors = ['tab:orange' if area <
-          5 else 'tab:blue' for area in df_sorted['rgi_area_km2']]
-
-# Plot the glacier area as a bar chart with conditional colors
-bars = ax1.bar(range(1, len(df_sorted) + 1),
-               df_sorted['rgi_area_km2'], color=colors, alpha=0.6, width=1)
-
-# Plot cumulative volume on the first y-axis (line chart)
-# Add second y-axis for area (bar chart)
-ax2 = ax1.twinx()
-ax2.set_xlabel('Number of Glaciers')
-# Change label color to black
-ax2.set_ylabel('Cumulative Volume (km³)', color='black')
-ax2.plot(range(1, len(df_sorted) + 1),
-         df_sorted['cumulative_volume_km3'], color='black', label='Cumulative Volume (km³)')
-ax2.tick_params(axis='y', labelcolor='black')
-
-# Add a legend for the bar colors
-legend_elements = [
-    Line2D([0], [0], color='orange', lw=4, label='Area < 5 km²'),
-    Line2D([0], [0], color='blue', lw=4, label='Area ≥ 5 km²'),
-    Line2D([0], [0], color='black', lw=2, label='Cumulative Volume (km³)')
-]
-
-ax1.legend(handles=legend_elements, loc='lower center',
-           bbox_to_anchor=(0.5, -0.2), ncols=3)
-
-# Add annotations for the share of glaciers and their corresponding area and volume percentages
-annotation_text = (
-    f"Total Number of Glaciers: {total_glaciers}\n"
-    f"# Glaciers A > 5 km²: {percentage_glaciers_over_5km2:.2f}%\n"
-    f"Area Share: {percentage_area_over_5km2:.2f}% of Regional Area ({total_area:.0f} km²)\n"
-    f"Total Volume: {percentage_volume_over_5km2:.2f}% of Regional Volume ({total_volume:.0f} km³)"
-)
-# Place the annotation in the plot
-ax1.annotate(annotation_text, xy=(0.5, 0.5), xycoords='axes fraction',
-             fontsize=10, bbox=dict(boxstyle="round,pad=0.3", edgecolor='white', facecolor='white'))
-
-# # Set limits for both axes to start at zero
-# ax1.set_xlim(left=-1)  # Set x-axis to start at 0
-ax2.set_ylim(bottom=0)  # Set y-axis for cumulative volume to start at 0
-# Set y-axis for area to start just above 0 (log scale, cannot be 0)
-ax1.set_ylim(bottom=0.01)
-
-# Add title and layout adjustments
-plt.title('Cumulative Glacier Volume and Glacier Area in RGI region 13-15 A>5km$^2$')
-fig.tight_layout()
-
-# Show plot
-plt.show()
-
-
-# %% Cell 4: Process the Irr climate perturbations for all the gdirs and compile
-
-
-members = [1, 3, 4, 6, 1]
-models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM"]
-timeframe = "monthly"
-
-opath_climate = os.path.join(sum_dir, 'climate_historical.nc')
-utils.compile_climate_input(
-    gdirs_3r_a5, path=opath_climate, filename='climate_historical')
-
-# if you get a long error log saying that "columns" can not be renamed it is often related to multiprocessing
-cfg.PARAMS['use_multiprocessing'] = False
-for m, model in enumerate(models):
-    for member in range(members[m]):
-
-        # Provide the path to the perturbation dataset
-        i_folder_ptb = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/07. OGGM Perturbation input files/{timeframe}/{model}/{member}"
-        ds_path = f"{i_folder_ptb}/{model}.00{member}.{y0_clim}_{ye_clim}.{timeframe}.perturbation.input.%.degC.nc"
-
-        # Provide the sample ID to provide the processed pertrubations with the correct output suffix
-        sample_id = f"{model}.00{member}"
-        print(sample_id)
-
-        workflow.execute_entity_task(process_perturbation_data, gdirs_3r_a5,
-                                     ds_path=ds_path,
-                                     y0=None, y1=None,
-                                     output_filesuffix=f'_perturbation_{sample_id}')
-
-        opath_perturbations = os.path.join(
-            sum_dir, f'climate_historical_perturbation_{sample_id}.nc')
-        utils.compile_climate_input(gdirs_3r_a5, path=opath_perturbations, filename='climate_historical',
-                                    input_filesuffix=f'_perturbation_{sample_id}',
-                                    use_compression=True)
-
-
-# %% Cell 6: Perturb the climate historical with the processed Irr-perturbations, output is gcm file
-cfg.PARAMS['use_multiprocessing'] = True
-count = 0
-# gdir = gdirs_3r_a5[0]
-for gdir in gdirs_3r_a5:
-    count += 1
-    print(round((count*100)/len(gdirs_3r_a5), 2))
-    # tasks.init_present_time_glacier(gdir)
-    with xr.open_dataset(gdir.get_filepath('climate_historical')) as ds:
-        ds = ds.load()
-    for m, model in enumerate(models_shortlist):
-        for member in range(members[m]):
-            sample_id = f"{model}.00{member}"
-            # make a copy of the historical climate
-            clim_ptb = ds.copy()
-            # open the perturbation dataset and add the perturbations
-            with xr.open_dataset(gdir.get_filepath('climate_historical', filesuffix='_perturbation_{}'.format(sample_id))) as ds_ptb:
-                ds_ptb = ds_ptb.load()
-            clim_ptb['temp'] = clim_ptb.temp - ds_ptb.temp
-            clim_ptb['prcp'] = clim_ptb.prcp - clim_ptb.prcp * ds_ptb.prcp
-            clim_ptb = clim_ptb.dropna('time')
-            clim_ptb.to_netcdf(gdir.get_filepath(
-                'gcm_data', filesuffix='_perturbed_{}'.format(sample_id)))
-
-
-# %% Cell 7: Run Mass Balance model for the glaciers (V = A*B)
-
-for m, model in enumerate(models):
-    for member in range(members[m]):
-
-        # create a sample id for all the model x member combinations
-        sample_id = f"{model}.00{member}"
-        print(sample_id)
-
-        # create lists to store the model output
-        mb_ts_mean = []
-        mb_ts_all = []
-        mb_ts_mean_ext = []
-        mb_ts_all_ext = []
-        error_ids = []
-
-        # load the gdirs_3r_a5
-        for (g, gdir) in enumerate(gdirs_3r_a5):
-            try:
-                # provide the model flowlines and years for the mbmod
-                fls = gdir.read_pickle('model_flowlines')
-                years = np.arange(1985, 2014)
-
-                if model == "W5E5":
-                    # extend range for w5e5, to see match w. geodetic mass balance
-                    years_ext = np.arange(2000, 2020)
-                    # Get the calibrated mass-balance model - the default is to use OGGM's "MonthlyTIModel" and compute specific mb
-                    mbmod = massbalance.MonthlyTIModel(
-                        gdir, filename='climate_historical')
-                    mb_ts = mbmod.get_specific_mb(fls=fls, year=years)
-                    # also run the model for the extended years and save
-                    mb_ts_ext = mbmod.get_specific_mb(fls=fls, year=years_ext)
-                    for year, mb in zip(years, mb_ts):
-                        mb_ts_all.append((gdir.rgi_id, years_ext, mb))
-                else:
-                    mbmod = massbalance.MonthlyTIModel(
-                        gdir, filename='gcm_data', input_filesuffix='_perturbed_{}'.format(sample_id))
-                    mb_ts = mbmod.get_specific_mb(fls=fls, year=years)
-                # Append all time series data to mb_ts_all
-                for year, mb in zip(years, mb_ts):
-                    mb_ts_all.append((gdir.rgi_id, year, mb))
-
-            # include an exception so the model will continue running on error and provide the error
-            except Exception as e:
-                # Handle the error and continue
-                print(
-                    f"Error processing {gdir.rgi_id} with model {model} and member {member}: {e}")
-                # found error: RGI60-13.36875 no flowlines --> 542 to 541 glaciers in selected gdirs_3r_a5
-                error_ids.append((gdir.rgi_id, model, member))
-                continue
-            mean_mb = np.mean(mb_ts)
-            mb_ts_mean.append((gdir.rgi_id, mean_mb))
-
-            if model == "W5E5":
-                mean_mb_ext = np.mean(mb_ts_ext)
-                mb_ts_mean_ext.append((gdir.rgi_id, mean_mb_ext))
-
-        # create a dataframe with the mass balance data of all gdirs_3r_a5
-        mb_df_mean = pd.DataFrame(mb_ts_mean, columns=['rgi_id', 'B'])
-        mb_df_mean.to_csv(os.path.join(
-            sum_dir, f'specific_massbalance_mean_{sample_id}.csv'), index=False)
-        mb_ts_df = pd.DataFrame(
-            mb_ts_all, columns=['rgi_id', 'Year', 'Mass_Balance'])
-        mb_ts_df.to_csv(os.path.join(
-            sum_dir, f'specific_massbalance_timeseries_{sample_id}.csv'), index=False)
-
-        if model == "W5E5":  # only for W5E5 also create a dataframe for the extended timeseries
-            mb_df_mean_ext = pd.DataFrame(
-                mb_ts_mean_ext, columns=['rgi_id', 'B'])
-            mb_df_mean_ext.to_csv(os.path.join(
-                sum_dir, f'specific_massbalance_mean_extended_{sample_id}.csv'), index=False)
-            mb_ts_df_ext = pd.DataFrame(mb_ts_all_ext, columns=[
-                                        'rgi_id', 'Year', 'Mass_Balance'])
-            mb_ts_df_ext.to_csv(os.path.join(
-                sum_dir, f'specific_massbalance_timeseries_extended_{sample_id}.csv'), index=False)
-
-        # Optionally save the list of error cases to a CSV for later review
-        if error_ids:
-            error_df = pd.DataFrame(
-                error_ids, columns=['rgi_id', 'Model', 'Member'])
-            error_df.to_csv(os.path.join(
-                log_dir, 'Error_Log.csv'), index=False)
-
-# %% Cell 80: Update the master dataset with B, A, RGI ID and location for all the different sample ids (541x15=8115) and the region name
-
-master_df = pd.read_csv(f"{wd_path}/master_gdirs_r3_a5_rgi_date_A_V.csv")
-data = []
-rgi_ids = []
-labels = []
-
-members = [1, 3, 4, 6, 1]
-# Iterate over models and members, collecting data for boxplots
-# only take the model shortlist as members are handled separately
-for m, model in enumerate(models_shortlist):
-    for member in range(members[m]):
-        sample_id = f"{model}.0{member:02d}"  # Ensure leading zeros
-        i_path = os.path.join(
-            sum_dir, f'specific_massbalance_mean_{sample_id}.csv')
-
-        # Load the CSV file into a DataFrame and convert to xarray
-        mb = pd.read_csv(i_path, index_col=0).to_xarray()
-
-        # Collect B values for each model and member
-        data.append(mb.B.values)
-
-        # Store RGI IDs only for the first model/member
-        if m == 0 and member == 0:
-            rgi_ids.append(mb.rgi_id.values)
-
-        labels.append(sample_id)
-
-i_path_base = os.path.join(sum_dir, 'specific_massbalance_mean_W5E5.000.csv')
-mb_base = pd.read_csv(i_path_base, index_col=0)
-base_array = np.array(mb_base)
-
-# Convert the list of data into a NumPy array and transpose it
-data_array = np.array(data)
-# Shape: (number of B values, number of models * members)
-reshaped_data = data_array.T
-# Create a DataFrame for the reshaped data
-df = pd.DataFrame(reshaped_data,  index=rgi_ids, columns=np.repeat(labels, 1))
-
-df['B_irr'] = base_array
-
-df.rename_axis("rgi_id", inplace=True)
-df.reset_index(drop=False, inplace=True)
-
-# Step 1: Melt the DataFrame to get B_noirr values
-df_melted = pd.melt(df, id_vars='rgi_id', value_vars=[col for col in df.columns if col != 'B_irr'],
-                    var_name='sample_id', value_name='B_noirr')
-
-# Step 2: Create a DataFrame with repeated B_irr values
-# Keep only the rgi_id and B_irr columns
-b_irr_repeated = df[['rgi_id', 'B_irr']].copy()
-b_irr_repeated = b_irr_repeated.merge(
-    df_melted[['rgi_id', 'sample_id']], on='rgi_id')  # Ensure all combinations
-
-# Now merge B_irr with melted DataFrame
-df_complete = pd.merge(df_melted, b_irr_repeated, on=['rgi_id', 'sample_id'])
-df_complete['B_delta'] = df_complete.B_irr-df_complete.B_noirr
-
-# Merge with rgis_complete
-# master_df = master_ds.to_dataframe()
-df_complete = pd.merge(df_complete, master_df, on='rgi_id', how='inner')
-
-subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected.shp"
-subregions = gpd.read_file(subregions_path)
-subregions = subregions[['o2region', 'full_name']]
-subregions = subregions.rename(columns={'o2region': 'rgi_subregion'})
-df_complete_2 = pd.merge(df_complete, subregions, on='rgi_subregion')
-
-new_order = ['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
-             'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta']
-
-df_complete_2 = df_complete_2[new_order]
-df_complete_2.to_csv(f"{wd_path}/master_gdirs_r3_a5_rgi_date_A_V_B.csv")
-# Display the final DataFrame
-print(df_complete_2)
-
-
-# %% Cell 8a plot mass balance data in histograms and gaussians (subplots and one plot for all member options, boxplot and gaussian only option)
+# %% Cell 2a: plot mass balance data in histograms and gaussians (subplots and one plot for all member options, boxplot and gaussian only option)
 
 def gaussian(x, mu, sigma, A):
     return A * np.exp(-(x - mu)**2 / (2 * sigma**2))
@@ -717,7 +164,7 @@ mb_member_average = np.mean(mb_members, axis=0)
 # load dataframe structure in order to plot gaussian
 mb_ds_members = mb.copy().to_dataframe()
 mb_ds_members['B'] = mb_member_average  # add the data to the dataframe
-plot_gaussian(ax, mb_ds_members, bin_size, "black", "10-member average",
+plot_gaussian(ax, mb_ds_members, bin_size, "black", "11-member average",
               zorder=members[m] + member + 1, linestyle="--", gaussian_only=gaussian_only)
 
 # format the plot
@@ -727,11 +174,15 @@ ax.set_xlabel("Mean specific mass balance [mm w.e. yr$^{-1}$]")
 ax.legend(loc="upper left", bbox_to_anchor=(0, 1))
 ax.set_xlim(-1250, 1000)
 ax.axvline(0, color='k', linestyle="dashed", lw=1, zorder=20)
-
 plt.tight_layout()
+
+fig_folder = os.path.join(fig_path, "03. Mass Balance", "Histogram")
+os.makedirs(fig_folder, exist_ok=True)
+plt.savefig(f"{fig_folder}/Gaussian_distribution_total_region_by_member.png")
+
 plt.show()
 
-# %% Cell 8a plot mass balance data in histograms and gaussians - by subregion (subplots and one plot for all member options, boxplot and gaussian only option)
+# %% Cell 2b plot mass balance data in histograms and gaussians - by subregion (subplots and one plot for all member options, histogram and gaussian only option)
 
 # Function to calculate weighted or simple mean
 
@@ -775,7 +226,7 @@ subregions = [9, 3, 3]
 # Initialize plot
 n_rows = 5
 n_cols = 3
-subplots = False
+subplots = True
 
 if subplots == True:
     gaussian_only = False  # Flag to use Gaussian fit only
@@ -785,7 +236,7 @@ if subplots == True:
     axes = axes.flatten()
 else:
     gaussian_only = True  # Flag to use Gaussian fit only
-    fig, axes = plt.subplots(figsize=(10, 6), sharex=True, sharey=False, gridspec_kw={
+    fig, axes = plt.subplots(figsize=(8, 5), sharex=True, sharey=False, gridspec_kw={
         'hspace': 0.15, 'wspace': 0.25})  # create a new figure
 
 
@@ -800,7 +251,8 @@ plot_index = 0
 
 
 # Load dataset
-ds = pd.read_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
+ds = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
 
 # Filter out 'sample_id's that end with '0', except for 'IPSL-CM6.000'
 ds = ds[(~ds['sample_id'].str.endswith('0')) |
@@ -926,23 +378,36 @@ region_legend_patches = [
 
 ]
 
-plt.legend(handles=region_legend_patches, loc="center",
-           bbox_to_anchor=(0.5, -0.3), ncols=3)
-# plt.legend(handles=region_legend_patches, loc="center",
-#                     bbox_to_anchor=(-0.8, -1.3), ncols=3)
+if subplots == False:
+    plt.legend(handles=region_legend_patches, loc="center",
+               bbox_to_anchor=(0.5, -0.3), ncols=3)
+else:
+    plt.legend(handles=region_legend_patches, loc="center",
+               bbox_to_anchor=(-0.8, -1.3), ncols=3)
 
 ax.set_xlim(-1500, 1000)
 
 plt.tight_layout()
+
+fig_folder = os.path.join(fig_path, "03. Mass Balance", "Histogram")
+os.makedirs(fig_folder, exist_ok=True)
+if subplots == False:
+    plt.savefig(
+        f"{fig_folder}/Gaussian_distribution_total_region_by_region_1plot.png")
+
+else:
+    plt.savefig(
+        f"{fig_folder}/Gaussian_distribution_total_region_by_region_subplots.png")
 plt.show()
 
 
-# %% Cell 8B: Plot the specific mass balances using boxplots, different subsets, weighted by region - print median
+# %% Cell 3a: Plot the specific mass balances using boxplots, different subsets, weighted by region - print median
 # Initialize plot
 fig, ax = plt.subplots(figsize=(10, 10))
 
 # Load dataset
-ds = pd.read_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
+ds = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
 
 # Filter out 'sample_id's that end with '0', except for 'IPSL_CM6.000'
 ds = ds[(~ds['sample_id'].str.endswith('0')) |
@@ -1098,15 +563,21 @@ ax.set_xlabel('Mean B_noirr and B_irr')
 ax.set_ylabel('Regions and Subregions')
 ax.set_xlim(-1350, 1000)
 plt.tight_layout()
+
+fig_folder = os.path.join(fig_path, "03. Mass Balance", "Boxplot")
+os.makedirs(fig_folder, exist_ok=True)
+plt.savefig(
+    f"{fig_folder}/Gaussian_distribution_total_region_by_region_median.png")
 plt.show()
 
 
-# %% Cell 8B: Plot the specific mass balances using boxplots, different subsets, weighted by region - print area weighted mean
+# %% Cell 4b: Plot the specific mass balances using boxplots, different subsets, weighted by region - print area weighted mean
 # Initialize plot
 fig, ax = plt.subplots(figsize=(10, 10))
 
 # Load dataset
-ds = pd.read_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
+ds = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
 
 # Filter out 'sample_id's that end with '0', except for 'IPSL-CM6.000'
 ds = ds[(~ds['sample_id'].str.endswith('0')) |
@@ -1140,7 +611,7 @@ grouped_ds = grouped_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', '
 
 # Overwrite the original dataset with the grouped one
 ds = grouped_ds
-
+use_weights = True
 # Define regions and subregions to loop through
 regions = [13, 14, 15]
 subregions = [9, 3, 3]  # Subregions count for each region
@@ -1277,7 +748,9 @@ region_legend_patches += [mean_dot, median_stripe]
 
 # Create the legend with the updated patches
 ax.legend(handles=region_legend_patches, loc='lower center',
-          bbox_to_anchor=(0.5, -0.15), ncols=3)
+          bbox_to_anchor=(1, -0.15), ncols=3)
+# ax.legend(handles=region_legend_patches, loc='lower center',
+#           bbox_to_anchor=(0.5, -0.15), ncols=3)
 
 ax.axvline(x=0, color='black', linestyle='--', linewidth=1, zorder=0)
 ax.set_xlabel('Mean B_noirr and B_irr')
@@ -1286,56 +759,14 @@ ax.set_xlim(-1350, 1000)
 
 # Adjust layout and display the plot
 plt.tight_layout()
+fig_folder = os.path.join(fig_path, "03. Mass Balance", "Boxplot")
+os.makedirs(fig_folder, exist_ok=True)
+plt.savefig(
+    f"{fig_folder}/Gaussian_distribution_total_region_by_region_areaweighted_mean.png")
 plt.show()
 
 
-# %% Cell 9: Run the climate model - Save pkl after running is done , as running takes quite a while
-
-cfg.PARAMS['continue_on_error'] = True
-cfg.PARAMS['use_multiprocessing'] = False
-
-# gdir = gdirs_3r_a5[0]
-y0_clim = 1985
-ye_clim = 2014
-
-members = [1, 3, 4, 6]
-models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM"]
-for m, model in enumerate(models):
-    for member in range(members[m]):
-        sample_id = f"{model}.00{member}"
-        print(sample_id)
-        workflow.execute_entity_task(
-            tasks.init_present_time_glacier, gdirs_3r_a5)
-        out_id = f'_perturbed_{sample_id}'
-        opath = os.path.join(
-            sum_dir, f'climate_run_output_perturbed_{sample_id}.nc')
-        workflow.execute_entity_task(tasks.run_from_climate_data, gdirs_3r_a5,
-                                     ys=y0_clim, ye=ye_clim,  # min_ys=None,
-                                     max_ys=None, fixed_geometry_spinup_yr=None,
-                                     store_monthly_step=False, store_model_geometry=None,
-                                     store_fl_diagnostics=True, climate_filename='gcm_data',
-                                     # mb_model=None, mb_model_class=<class 'oggm.core.massbalance.MonthlyTIModel'>,
-                                     climate_input_filesuffix='_perturbed_{}'.format(
-                                         sample_id),
-                                     output_filesuffix=out_id,
-                                     # init_model_filesuffix='_historical', #in case you want to start from a previous model state
-                                     # init_model_yr=2015, init_model_fls=None,
-                                     zero_initial_glacier=False, bias=0,
-                                     temperature_bias=None, precipitation_factor=None)
-
-        ds_ptb = utils.compile_run_output(
-            gdirs_3r_a5, input_filesuffix=out_id, path=opath)  # compile the run output
-
-
-# And run the climate model with reference data
-workflow.execute_entity_task(tasks.run_from_climate_data, gdirs_3r_a5,
-                             ys=y0_clim, ye=ye_clim,
-                             output_filesuffix='_baseline_W5E5.000')
-opath_base = os.path.join(sum_dir, 'climate_run_output_baseline_W5E5.000.nc')
-ds_base = utils.compile_run_output(
-    gdirs_3r_a5, input_filesuffix='_baseline_W5E5.000', path=opath_base)
-
-# %% Cell 10: Create output plots for Area and volume
+# %% Cell 5a: Create output plots for Area and volume
 
 # define the variables for p;lotting
 variables = ["volume", "area"]
@@ -1414,9 +845,10 @@ for v, var in enumerate(variables):
     o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.combined.png"
     plt.savefig(o_file_name, bbox_inches='tight')
 
-# %% Cell 11: Create output plots for Area and volume - per region
+# %% Cell 6b: Create output plots for Area and volume - per region
 
-ds = pd.read_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
+ds = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
 
 # Filter out 'sample_id's that end with '0', except for 'IPSL-CM6.000'
 ds = ds[(~ds['sample_id'].str.endswith('0')) |
@@ -1579,64 +1011,15 @@ for v, var in enumerate(variables):
     plt.savefig(o_file_name, bbox_inches='tight')
 
 
-# %% Cell 12: Open all hugonnet data and align with rgi_ids from r3_a5
+# %% Cell 7: Correlation curve
 
-
-def str_to_float(value):
-    return float(value)
-
-
-all_data = pd.DataFrame(columns=['B', 'rgi_id'])
-regions = [13, 14, 15]
-for region in regions:
-    Hugonnet_path = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/04. Reference/01. Climate data/Hugonnet/aggregated_2000_2020/{region}_mb_glspec.dat"
-    df_raw = pd.read_csv(Hugonnet_path)
-    # Convert the pandas DataFrame to an Xarray Dataset
-    ds = xr.Dataset.from_dataframe(df_raw)
-    # Load the data variables, as they are listed in the first row
-    var_index = ds.coords['index'].values
-    header_str = var_index[1]  # Set the var_index as the header string
-    data_rows_str = var_index[2:]  # Set the datarows
-    # # print(header_str, data_rows_str)
-
-    # # split data input in such a way that it is loaded as dataframe with columns headers and data in table below
-    header = header_str.split()
-
-    # # Transform the data type from string values to integers for the relevant columns
-    data_rows = [row.split() for row in data_rows_str]
-
-    hugo_ds = pd.DataFrame(data_rows, columns=header)
-    for col in hugo_ds.columns:
-        if col != 'RGI-ID':  # Exclude column 'B'
-            hugo_ds[col] = hugo_ds[col].apply(str_to_float)
-
-    # # # create a dataset from the transformed data in order to select the required glaciers
-    hugo_ds = hugo_ds.rename(columns={'RGI-ID': 'rgi_id'})
-
-    new_data = pd.DataFrame({
-        # Repeat the rgi_id for each B value
-        'rgi_id': hugo_ds['rgi_id'].values,
-        # Assuming this is a 1D array or single value
-        'B': hugo_ds['B'].values
-
-    })
-
-    # Concatenate the new data into the main DataFrame
-    all_data = pd.concat([all_data, new_data], ignore_index=True)
-
-master = pd.read_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B.csv")
-
-hugo_ds = pd.merge(master, all_data, on='rgi_id', how='left')
-hugo_ds = hugo_ds.rename(columns={'B': 'B_hugo'})
-hugo_ds.to_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
+hugo_ds = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
 
 hugo_df = hugo_ds[['rgi_id', 'B_hugo']]
 
-
-# %% Cell 13: Correlation curve
-
-members = [1, 1, 1, 1]  # , 1]
-models = ["W5E5", "E3SM", "CESM2", "CNRM"]  # , "IPSL-CM6"]
+members = [1, 1, 1, 1, 1]
+models = ["W5E5", "E3SM", "CESM2", "CNRM", "IPSL-CM6"]
 
 plt.figure(figsize=(10, 6))
 
@@ -1685,20 +1068,17 @@ for m, model in enumerate(models):
         plt.xlabel('Geodetic mass balance (m w.e. yr$^{-1}$)')
 plt.legend()
 
-# plt.scatter(mb_base.rgi_id, mb_base.B, color=colors[model][member])
+fig_folder = os.path.join(fig_path, "03. Mass Balance", "Correlation")
+os.makedirs(fig_folder, exist_ok=True)
+plt.savefig(f"{fig_folder}/Correlation_curve_IPSL.png")
+# plt.savefig(f"{fig_folder}/Correlation_curve.png")
+fig.tight_layout()
 
 plt.show()
 # #
 
 
-# %% Cell 14: map plot
-
-# to do:
-# -  move legend
-# - change location of annotation per subregion
-# - change data in subplots
-# - decide on country outlines (evt with white cover)
-# - color coding per subregion
+# %% Cell 8: map plot
 
 
 # Configuration
@@ -1707,27 +1087,21 @@ subregion_blocks = False
 region_colors = {13: 'blue', 14: 'crimson', 15: 'orange'}
 
 # Load datasets
-df = pd.read_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
-master_ds = df[(~df['sample_id'].str.endswith('0')) |
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B.csv")
+# df = pd.read_csv(
+#     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
+master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model averages ending with 0 except for IPSL
                (df['sample_id'].str.startswith('IPSL'))]
 
 # Normalize values
+# divide all the B values with 1000 to transform to m w.e. average over 30 yrs
 master_ds[['B_noirr', 'B_irr', 'B_delta']] /= 1000
 
-# Aggregate dataset, area-weighted
-master_ds_avg = master_ds.groupby('rgi_id').agg({
-    'B_delta': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
-    'sample_id': lambda _: "11 member average",
-    **{col: 'first' for col in master_ds.columns if col not in ['B_noirr', 'sample_id', 'area']}
-})
+master_ds = master_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta']]
 
-ds = pd.read_csv(f"{wd_path}master_gdirs_r3_a5_rgi_date_A_V_B_hugo.csv")
-
-# Filter out 'sample_id's that end with '0', except for 'IPSL-CM6.000'
-ds = ds[(~ds['sample_id'].str.endswith('0')) |
-        (ds['sample_id'] == 'IPSL-CM6.000')]
-
-# Define custom aggregation functions for grouping
+# Define custom aggregation functions for grouping over the 11 member data
 aggregation_functions = {
     'rgi_region': 'first',
     'rgi_subregion': 'first',
@@ -1742,35 +1116,93 @@ aggregation_functions = {
     'B_delta': 'mean',
     'sample_id': 'first'
 }
+master_ds_avg = master_ds.groupby(['rgi_id'], as_index=False).agg({
+    'B_delta': 'mean',
+    'B_noirr': 'mean',
+    # lamda is anonmous functions, returns 11 member average
+    'sample_id': lambda _: "11 member average",
+    # take first value for all columns that are not in the list
+    **{col: 'first' for col in master_ds.columns if col not in ['B_noirr', 'B_delta', 'sample_id']}
+})
 
-# Step 1: Group by 'rgi_id', apply custom aggregation
-grouped_ds = ds.groupby('rgi_id').agg(aggregation_functions).reset_index()
+# Aggregate data for scatter plot
+master_ds_avg['grid_lon'] = np.floor(master_ds_avg['cenlon'])
+master_ds_avg['grid_lat'] = np.floor(master_ds_avg['cenlat'])
 
-# Step 2: Replace the 'sample_id' column with "11-member average"
-grouped_ds['sample_id'] = '11-member average'
+# Aggregate dataset, area-weighted BDelta Birr and Bnoirr, Sample id is replaced by 11 member average
+aggregated_ds = master_ds_avg.groupby(['grid_lon', 'grid_lat'], as_index=False).agg({
+    'B_delta': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
+    'B_irr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
+    'B_noirr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
+    'rgi_area_km2': 'sum',  # Sum for area
+    'rgi_volume_km3': 'sum',  # Sum for volume
+    # 'sample_id': lambda _: "11 member average",
+    # take first value for all columns that are not in the list
+    **{col: 'first' for col in master_ds.columns if col not in ['B_noirr', 'B_irr', 'B_delta', 'sample_id', 'rgi_area_km2', 'rgi_volume_km3']}
+})
 
-# Step 3: Keep only the required columns
-grouped_ds = grouped_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
-                         'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta']]
+aggregated_ds.rename(
+    columns={'grid_lon': 'lon', 'grid_lat': 'lat'}, inplace=True)
+gdf = gpd.GeoDataFrame(aggregated_ds, geometry=gpd.points_from_xy(
+    aggregated_ds['lon'] + 0.5, aggregated_ds['lat'] + 0.5))
 
-# Overwrite the original dataset with the grouped one
-ds = grouped_ds
+# Colormap and scatter plot
+custom_cmap = LinearSegmentedColormap.from_list(
+    'red_white_blue', [(1, 0, 0), (1, 1, 1), (0, 0, 1)], N=256)
+# norm = TwoSlopeNorm(vmin=gdf['B_irr'].min(
+# ), vcenter=0, vmax=gdf['B_irr'].max())
+norm = TwoSlopeNorm(vmin=-0.7, vcenter=0, vmax=0.2)
 
-# Load shapefiles
-shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
-subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected.shp"
-shp = gpd.read_file(shapefile_path).to_crs('EPSG:4326')
-subregions = gpd.read_file(subregions_path).to_crs('EPSG:4326')
-
-# Plot setup
+# Plot setup and plot shapefile
 fig, ax = plt.subplots(figsize=(10, 7), subplot_kw={
                        'projection': ccrs.PlateCarree()})
 ax.set_extent([45, 120, 13, 55], crs=ccrs.PlateCarree())
+# # Load shapefiles
+shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
+shp = gpd.read_file(shapefile_path).to_crs('EPSG:4326')
 shp.plot(ax=ax, edgecolor='red', linewidth=0, facecolor='lightgrey')
+subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected.shp"
+subregions = gpd.read_file(subregions_path).to_crs('EPSG:4326')
+
+scatter = ax.scatter(gdf.geometry.x, gdf.geometry.y,
+                     s=np.sqrt(gdf['rgi_area_km2'])*3, c=gdf['B_noirr'], cmap=custom_cmap, norm=norm, edgecolor='k', alpha=1)
+
+# # Add labels, ticks, and colorbar
+ax.set(xlabel='Longitude', ylabel='Latitude', xticks=np.arange(
+    45, 120, 5), yticks=np.arange(13, 55, 5))
+ax.tick_params(axis='both', which='major', labelsize=12)
+ax.set_xlabel('Longitude', fontsize=12)
+ax.set_ylabel('Latitude', fontsize=12)
+
+cbar_ax = fig.add_axes([0.08, -0.15, 0.28, 0.03])
+cbar = plt.colorbar(plt.cm.ScalarMappable(
+    cmap=custom_cmap, norm=norm), cax=cbar_ax, orientation='horizontal')
+cbar.ax.tick_params(labelsize=12)
+cbar.set_label(
+    # '$\Delta$ $B_{Irr}$ - $B_{NoIrr}$ (m w.e. yr$^{-1}$)', fontsize=12) #for delta
+    '$B_{Irr}$ (m w.e. yr$^{-1}$)', fontsize=12)  # for Birr
+# '$\$B_{Irr}$ (m w.e. yr$^{-1}$)', fontsize=12) #for Bnoi
+
+# Add volume legend
+# Define the custom sizes (in data units) for the legend
+# custom_sizes = [5, 50, 500]  # Example sizes for the legend - volume
+custom_sizes = [200, 500, 1000, 2000]  # Example sizes for the legend -area
+# Create labels for these sizes
+size_labels = [f"{size:.0f}" for size in custom_sizes]
+
+# Create legend handles using matplotlib Patch, simulating the size of scatter points
+legend_handles = [plt.scatter([], [], s=np.sqrt(size)*3, edgecolor='k', facecolor='none')
+                  for size in custom_sizes]  # Adjust size factor if needed
+
+# Create the custom legend with the defined sizes
+fig.legend(legend_handles, size_labels, loc="lower center", title="Total Area (km$^2$)", title_fontsize=12,
+           bbox_to_anchor=(0.22, -0.1), ncol=5, fontsize=12)
+
 
 # Subregion plotting
 centroids = subregions.geometry.centroid
 
+# define movements for the annotation of subregions
 movements = {
     '13-01': [1.2, 0.8],
     '13-02': [6.4, 2.8],
@@ -1788,7 +1220,7 @@ movements = {
     '15-02': [3, 2.5],
     '15-03': [-1, 4.5],
 }
-
+# annotate subregions
 for attribute, subregion in subregions.groupby('o2region'):
 
     facecolor = region_colors.get(
@@ -1820,55 +1252,6 @@ for attribute, subregion in subregions.groupby('o2region'):
         ax.plot([centroid_x, boundary_x], [centroid_y,
                 boundary_y+0.5], color='black', linewidth=1)
 
-# Aggregate data for scatter plot
-master_ds_avg['grid_lon'] = np.floor(master_ds_avg['cenlon'])
-master_ds_avg['grid_lat'] = np.floor(master_ds_avg['cenlat'])
-aggregated_ds = master_ds_avg.groupby(['grid_lon', 'grid_lat'], as_index=False).agg(
-    B_delta_aggregated=('B_delta', 'sum'), V_aggregated=('rgi_volume_km3', 'sum')
-)
-aggregated_ds.rename(
-    columns={'grid_lon': 'lon', 'grid_lat': 'lat'}, inplace=True)
-gdf = gpd.GeoDataFrame(aggregated_ds, geometry=gpd.points_from_xy(
-    aggregated_ds['lon'] + 0.5, aggregated_ds['lat'] + 0.5))
-
-# Colormap and scatter plot
-custom_cmap = LinearSegmentedColormap.from_list(
-    'red_white_blue', [(1, 0, 0), (1, 1, 1), (0, 0, 1)], N=256)
-norm = TwoSlopeNorm(vmin=gdf['B_delta_aggregated'].min(
-), vcenter=0, vmax=gdf['B_delta_aggregated'].max())
-scatter = ax.scatter(gdf.geometry.x, gdf.geometry.y,
-                     s=np.log(gdf['V_aggregated'])*10, c=gdf['B_delta_aggregated'], cmap=custom_cmap, norm=norm, edgecolor='k', alpha=1)
-
-# Add labels, ticks, and colorbar
-ax.set(xlabel='Longitude', ylabel='Latitude', xticks=np.arange(
-    45, 120, 5), yticks=np.arange(13, 55, 5))
-ax.tick_params(axis='both', which='major', labelsize=12)
-ax.set_xlabel('Longitude', fontsize=12)
-ax.set_ylabel('Latitude', fontsize=12)
-
-cbar_ax = fig.add_axes([0.08, -0.15, 0.28, 0.03])
-cbar = plt.colorbar(plt.cm.ScalarMappable(
-    cmap=custom_cmap, norm=norm), cax=cbar_ax, orientation='horizontal')
-cbar.ax.tick_params(labelsize=12)
-cbar.set_label(
-    '$\Delta$ $B_{Irr}$ - $B_{NoIrr}$ (m w.e. yr$^{-1}$)', fontsize=12)
-
-# Add volume legend
-# custom_sizes = scatter.legend_elements(
-#     prop="sizes", alpha=0.6, func=lambda s: np.exp(s / 20))
-# Define the custom sizes (in data units) for the legend
-custom_sizes = [5, 50, 500]  # Example sizes for the legend
-# Create labels for these sizes
-size_labels = [f"{size:.0f}" for size in custom_sizes]
-
-# Create legend handles using matplotlib Patch, simulating the size of scatter points
-legend_handles = [plt.scatter([], [], s=np.log(size)*10, edgecolor='k', facecolor='none')
-                  for size in custom_sizes]  # Adjust size factor if needed
-
-# Create the custom legend with the defined sizes
-fig.legend(legend_handles, size_labels, loc="lower center", title="Total Volume (km$^3$)", title_fontsize=12,
-           bbox_to_anchor=(0.22, -0.1), ncol=3, fontsize=12)
-
 
 # Define and iterate over grid layout
 layout = [["13.01", "13.03", "13.04", "13.05", "13.06"], ["13.02", "", "", "", "13.07"], [
@@ -1876,63 +1259,63 @@ layout = [["13.01", "13.03", "13.04", "13.05", "13.06"], ["13.02", "", "", "", "
 grid_positions = [[0.12 + col * (0.14 + 0.04), 0.82 - (0.14 + 0.07) * row - 0.05, 0.13, 0.14]
                   if layout[row][col] else None for row in range(4) for col in range(5)]
 # Plot subregion time series
-for idx, pos in enumerate(grid_positions):
-    if pos:
-        ax_callout = fig.add_axes(pos)
-        region_id = layout[idx // 5][idx % 5]
-        print(region_id)
-        subregion_ds = ds[ds['rgi_subregion'].str.contains(f"{region_id}")]
+# for idx, pos in enumerate(grid_positions):
+#     if pos:
+#         ax_callout = fig.add_axes(pos)
+#         region_id = layout[idx // 5][idx % 5]
+#         print(region_id)
+#         subregion_ds = master_ds_avg[master_ds_avg['rgi_subregion'].str.contains(f"{region_id}")]
 
-        # Baseline and model plotting
-        baseline_path = os.path.join(
-            wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
-        baseline = xr.open_dataset(baseline_path)
-        # Check if there are any matching rgi_id values
-        # Ensure that rgi_id values exist in both datasets
-        rgi_ids_in_baseline = baseline['rgi_id'].values
-        matching_rgi_ids = np.intersect1d(
-            rgi_ids_in_baseline, subregion_ds.rgi_id.values)
-        baseline_filtered = baseline.sel(rgi_id=matching_rgi_ids)
+#         # Baseline and model plotting
+#         baseline_path = os.path.join(
+#             wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
+#         baseline = xr.open_dataset(baseline_path)
+#         # Check if there are any matching rgi_id values
+#         # Ensure that rgi_id values exist in both datasets
+#         rgi_ids_in_baseline = baseline['rgi_id'].values
+#         matching_rgi_ids = np.intersect1d(
+#             rgi_ids_in_baseline, subregion_ds.rgi_id.values)
+#         baseline_filtered = baseline.sel(rgi_id=matching_rgi_ids)
 
-        # Plot model member data
-        ax_callout.plot(baseline_filtered["time"].values, baseline_filtered['volume'].sum(dim="rgi_id") * 1e-9,
-                        label="W5E5.000", color="black", linewidth=2, zorder=15)
-        filtered_member_data = []
-        for m, model in enumerate(models_shortlist):
-            for i in range(members_averages[m]):
-                sample_id = f"{model}.00{i + 1}" if members_averages[m] > 1 else f"{model}.000"
-                climate_run_output = xr.open_dataset(os.path.join(
-                    sum_dir, f'climate_run_output_perturbed_{sample_id}.nc'))
-                climate_run_output = climate_run_output.where(
-                    climate_run_output['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
-                ax_callout.plot(climate_run_output["time"].values, climate_run_output["volume"].sum(
-                    dim="rgi_id") * 1e-9, label=sample_id, color="grey", linewidth=2, linestyle="dotted")
-                filtered_member_data.append(
-                    climate_run_output["volume"].sum(dim="rgi_id").values * 1e-9)
+#         # Plot model member data
+#         ax_callout.plot(baseline_filtered["time"].values, baseline_filtered['volume'].sum(dim="rgi_id") * 1e-9,
+#                         label="W5E5.000", color="black", linewidth=2, zorder=15)
+#         filtered_member_data = []
+#         for m, model in enumerate(models_shortlist):
+#             for i in range(members_averages[m]):
+#                 sample_id = f"{model}.00{i + 1}" if members_averages[m] > 1 else f"{model}.000"
+#                 climate_run_output = xr.open_dataset(os.path.join(
+#                     sum_dir, f'climate_run_output_perturbed_{sample_id}.nc'))
+#                 climate_run_output = climate_run_output.where(
+#                     climate_run_output['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
+#                 ax_callout.plot(climate_run_output["time"].values, climate_run_output["volume"].sum(
+#                     dim="rgi_id") * 1e-9, label=sample_id, color="grey", linewidth=2, linestyle="dotted")
+#                 filtered_member_data.append(
+#                     climate_run_output["volume"].sum(dim="rgi_id").values * 1e-9)
 
-        # Mean and range plotting
-        mean_values = np.mean(filtered_member_data, axis=0).flatten()
-        min_values = np.min(filtered_member_data, axis=0).flatten()
-        max_values = np.max(filtered_member_data, axis=0).flatten()
-        ax_callout.plot(climate_run_output["time"].values, mean_values,
-                        color="blue", linestyle='dashed', lw=2, label="11-member average")
-        ax_callout.fill_between(
-            climate_run_output["time"].values, min_values, max_values, color="lightblue", alpha=0.3)
+#         # Mean and range plotting
+#         mean_values = np.mean(filtered_member_data, axis=0).flatten()
+#         min_values = np.min(filtered_member_data, axis=0).flatten()
+#         max_values = np.max(filtered_member_data, axis=0).flatten()
+#         ax_callout.plot(climate_run_output["time"].values, mean_values,
+#                         color="blue", linestyle='dashed', lw=2, label="11-member average")
+#         ax_callout.fill_between(
+#             climate_run_output["time"].values, min_values, max_values, color="lightblue", alpha=0.3)
 
-        # Subplot formatting
-        ax_callout.set_title(region_id, fontweight="bold", bbox=dict(
-            facecolor='white', edgecolor='none', pad=1))
-        # Count the number of glaciers (assuming each 'rgi_id' represents a glacier)
-        glacier_count = subregion_ds['rgi_id'].nunique()
-        # Add number of glaciers as a text annotation in the lower left corner
-        ax_callout.text(0.05, 0.05, f"{glacier_count}",
-                        transform=ax_callout.transAxes, fontsize=12, verticalalignment='bottom', fontstyle='italic')
-        # ax_callout.set_xlim(-3, 3)
-        # ax_callout.set_ylim(0, 20)
-        if idx < len(grid_positions) - 5:
-            ax_callout.tick_params(axis='x', labelbottom=False)
-        # if idx % 5 != 0:
-            ax_callout.tick_params(axis='y', labelleft=False)
+#         # Subplot formatting
+#         ax_callout.set_title(region_id, fontweight="bold", bbox=dict(
+#             facecolor='white', edgecolor='none', pad=1))
+#         # Count the number of glaciers (assuming each 'rgi_id' represents a glacier)
+#         glacier_count = subregion_ds['rgi_id'].nunique()
+#         # Add number of glaciers as a text annotation in the lower left corner
+#         ax_callout.text(0.05, 0.05, f"{glacier_count}",
+#                         transform=ax_callout.transAxes, fontsize=12, verticalalignment='bottom', fontstyle='italic')
+#         # ax_callout.set_xlim(-3, 3)
+#         # ax_callout.set_ylim(0, 20)
+#         if idx < len(grid_positions) - 5:
+#             ax_callout.tick_params(axis='x', labelbottom=False)
+#         # if idx % 5 != 0:
+#             ax_callout.tick_params(axis='y', labelleft=False)
 
 # Sample data for the example plot (volume vs. time)
 time = np.linspace(1985, 2015, 5)  # Simulated time points
@@ -1978,9 +1361,13 @@ fig_legend.set_yticklabels([])  # Removes y-axis tick labels
 
 
 fig.tight_layout()
+fig_folder = os.path.join(fig_path, "04. Map")
+os.makedirs(fig_folder, exist_ok=True)
+plt.savefig(f"{fig_folder}/Map_Plot_sA_cB_boxV_NOI.png")
 fig.show()
 
-# %% Create a table of total area per region included
+
+# %% CEll 9: Create a table of total area per region included
 
 # Sample dictionary with colors
 region_colors = {
@@ -1997,10 +1384,10 @@ regions = grouped_area.index.str[:2].astype(int)
 
 # Get the corresponding color for each region
 # Use 'gray' if region not in region_colors
-colors = [region_colors.get(region, 'gray') for region in regions]
+colors_ = [region_colors.get(region, 'gray') for region in regions]
 
 # Plot the bar chart with the assigned colors
-plt.bar(grouped_area.index, grouped_area['rgi_area_km2'], color=colors)
+plt.bar(grouped_area.index, grouped_area['rgi_area_km2'], color=colors_)
 
 # Add labels and title
 plt.xlabel('RGI Subregion')
@@ -2009,7 +1396,7 @@ plt.title('Total Area by RGI Subregion')
 plt.xticks(rotation=90)  # Rotate x-axis labels for readability
 plt.show()
 
-# %% Show the area by subregion
+# %% Cell 10: Show the area by subregion
 
 # Sample dictionary with colors
 region_colors = {
@@ -2050,7 +1437,7 @@ for i, subregion in enumerate(subregions):
     # Calculate the cumulative volume
     sorted_volume['cumulative_volume_km3'] = sorted_volume['rgi_volume_km3'].cumsum()
 
-    colors = [region_colors.get(region, 'gray') for region in regions]
+    colors_ = [region_colors.get(region, 'gray') for region in regions]
 
     # # Plot a histogram of glacier areas for this subregion
     # ax.hist(areas['rgi_area_km2'], bins=len(areas['rgi_area_km2']), color=colors[i], edgecolor='none')
@@ -2067,7 +1454,7 @@ for i, subregion in enumerate(subregions):
     # ax.set_ylim(0,125)
     # Plot the glacier area as a bar chart with conditional colors
     bars = ax.bar(range(1, len(sorted_areas['rgi_area_km2']) + 1),
-                  sorted_areas['rgi_area_km2'], color=colors[i], alpha=0.6, width=1)
+                  sorted_areas['rgi_area_km2'], color=colors_[i], alpha=0.6, width=1)
 
     axes2 = ax.twinx()
     axes2.set_xlabel('Number of Glaciers')

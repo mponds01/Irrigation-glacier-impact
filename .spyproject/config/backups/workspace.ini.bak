@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['03. Glacier simulations/03. Run OGGM w. custom climate data - sample glaciers.py', '02. Climate Data Processing/05. Create OGGM climate input file.py', '03. Glacier simulations/06. Run OGGM w. custom climate data - R13-15 A+5km2.py']
+recent_files = ['../../../../../../../.spyder-py3/temp.py']
 
 [main]
 version = 0.2.0

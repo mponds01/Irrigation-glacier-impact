@@ -154,7 +154,7 @@ print(df_3r.head)
 
 # %% Cell 3: Update the master dataset with RGI id
 
-df_3r = pd.read_csv(f"{wd_path}/masters/master_gdirs_r3_rgi_date_A_V.csv")
+df_3r = pd.read_csv(f"{wd_path}/masters/master_gdirs_r3_a5_rgi_date_A_V.csv")
 
 subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected.shp"
 subregions = gpd.read_file(subregions_path)
@@ -176,6 +176,7 @@ df_complete.to_csv(
 master_df = pd.read_csv(
     f"{wd_path}/masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg.csv")
 data = []
+data_cf = []
 rgi_ids = []
 labels = []
 
@@ -187,12 +188,16 @@ for m, model in enumerate(models_shortlist):
         sample_id = f"{model}.0{member:02d}"  # Ensure leading zeros
         i_path = os.path.join(
             sum_dir, f'specific_massbalance_mean_{sample_id}.csv')
+        i_path_cf = os.path.join(
+            sum_dir, f'specific_massbalance_mean_{sample_id}_counterfactual.csv')
 
         # Load the CSV file into a DataFrame and convert to xarray
         mb = pd.read_csv(i_path, index_col=0).to_xarray()
+        mb_cf = pd.read_csv(i_path_cf, index_col=0).to_xarray()
 
         # Collect B values for each model and member
         data.append(mb.B.values)
+        data_cf.append(mb_cf.B.values)
 
         # Store RGI IDs only for the first model/member
         if m == 0 and member == 0:
@@ -206,19 +211,28 @@ base_array = np.array(mb_base)
 
 # Convert the list of data into a NumPy array and transpose it
 data_array = np.array(data)
+data_array_cf = np.array(data_cf)
 # Shape: (number of B values, number of models * members)
 reshaped_data = data_array.T
+reshaped_data_cf = data_array_cf.T
 # Create a DataFrame for the reshaped data
-df = pd.DataFrame(reshaped_data,  index=rgi_ids, columns=np.repeat(labels, 1))
+df = pd.DataFrame(reshaped_data, index=rgi_ids, columns=np.repeat(labels, 1))
+df_cf = pd.DataFrame(reshaped_data_cf, index=rgi_ids,
+                     columns=np.repeat(labels, 1))
 
 df['B_irr'] = base_array
+# df['B_cf'] = reshaped_data_cf
 
 df.rename_axis("rgi_id", inplace=True)
 df.reset_index(drop=False, inplace=True)
+df_cf.rename_axis("rgi_id", inplace=True)
+df_cf.reset_index(drop=False, inplace=True)
 
 # Step 1: Melt the DataFrame to get B_noirr values
 df_melted = pd.melt(df, id_vars='rgi_id', value_vars=[col for col in df.columns if col != 'B_irr'],
                     var_name='sample_id', value_name='B_noirr')
+df_melted_cf = pd.melt(df_cf, id_vars='rgi_id', value_vars=[col for col in df_cf.columns],
+                       var_name='sample_id', value_name='B_cf')
 
 # Step 2: Create a DataFrame with repeated B_irr values
 # Keep only the rgi_id and B_irr columns
@@ -228,7 +242,9 @@ b_irr_repeated = b_irr_repeated.merge(
 
 # Now merge B_irr with melted DataFrame
 df_complete = pd.merge(df_melted, b_irr_repeated, on=['rgi_id', 'sample_id'])
-df_complete['B_delta'] = df_complete.B_irr-df_complete.B_noirr
+df_complete = pd.merge(df_complete, df_melted_cf, on=['rgi_id', 'sample_id'])
+df_complete['B_delta_irr'] = df_complete.B_irr-df_complete.B_noirr
+df_complete['B_delta_cf'] = df_complete.B_irr-df_complete.B_cf
 
 # Merge with rgis_complete
 # master_df = master_ds.to_dataframe()
@@ -236,9 +252,10 @@ df_complete = pd.merge(df_complete, master_df, on='rgi_id', how='inner')
 
 
 new_order = ['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
-             'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta']
+             'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta_irr', 'B_cf', 'B_delta_cf']
 
 df_complete = df_complete[new_order]
+# print(df_complete[1:5])
 df_complete.to_csv(
     f"{wd_path}/masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B.csv")
 

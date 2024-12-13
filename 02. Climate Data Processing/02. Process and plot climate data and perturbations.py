@@ -24,12 +24,29 @@ import geopandas as gpd
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import xarray as xr
+import xarray.ufuncs as xu
 import calendar
 from calendar import monthrange
 import pandas as pd
 diff_folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/02. Perturbations/Precipitation/monthly/CESM2/0/"
 ifile_diff = f"{diff_folder_in}/CESM2.PR.DIF.000.1985_2014_monthly_abs.nc"
 ds = xr.open_dataset(ifile_diff)
+# %% Test
+
+mode_suff = "total"
+model = "CESM2"
+member = 1
+y0 = 1985
+ye = 2014
+folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/01. Climate data/{model}/{y0}/"
+ifile_IRR = f"{folder_in}/{model}.IRR.00{member}.{y0}_{ye}_selparam_monthly_{mode_suff}.nc"
+
+ds = xr.open_dataset(ifile_IRR)
+ds = (ds.sel(time="1985-02-01").sn + ds.sel(time="1985-02-01").pr)*3600*24*30
+ds = ds.where((ds.lon > 60) & (ds.lon < 120) & (
+    ds.lat > 15) & (ds.lat < 50), drop=True)
+ds.plot(cbar_kwargs={"label": "tot"})
+
 # %% Cell 1: Process perturbations for IRR-NOI comparison
 
 
@@ -67,7 +84,7 @@ def process_P_T_perturbations(model, member, var, timeframe, mode, diftype, y0, 
 
         baseline_R = ifile_NOI.pr*86400
         irrigation_R = ifile_IRR.pr*86400
-        if model in ["CESM2", "E3SM"]:
+        if model in ["CESM2", "E3SM", "NorESM"]:
             baseline_S = ifile_NOI.sn*86400
             baseline = baseline_R+baseline_S
             irrigation_S = ifile_IRR.sn*86400
@@ -217,7 +234,7 @@ def process_P_T_perturbations_counterfactual(model, member, var, timeframe, mode
 
         baseline_R = ifile_IRR_cf.pr*86400
         irrigation_R = ifile_IRR.pr*86400
-        if model in ["CESM2", "E3SM"]:
+        if model in ["CESM2", "E3SM", "NorESM"]:
             baseline_S = ifile_IRR_cf.sn*86400
             baseline = baseline_R+baseline_S
             irrigation_S = ifile_IRR.sn*86400
@@ -424,9 +441,9 @@ def process_P_T_baseline(model, member, var, timeframe, diftype, y0, ye):
     return
 
 
-for model in ["CRU", "W5E5"]:
+for model in ["NorESM"]:  # "CRU", "W5E5"]:
 
-    for member in [0]:
+    for member in [4]:
         for var in ["Precipitation", "Temperature"]:
             for timeframe in ["annual", "seasonal", "monthly"]:
                 for diftype in ['abs']:
@@ -1456,8 +1473,8 @@ def plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, di
 # %% Cell 7: Run the perturbation processing for all climate models, members etc.
 members = [4]  # 1, 3, 4, 6, 3]
 # members = [1, 1, 1, 1]
-y0 = 1985
-ye = 2014
+y0 = 1985  # 1901
+ye = 2014  # 1930
 # IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]):
 for (m, model) in enumerate(["NorESM"]):
     for member in range(members[m]):
@@ -1470,13 +1487,12 @@ for (m, model) in enumerate(["NorESM"]):
                     else:
                         diftypes = ['abs']
                     for dif in diftypes:
-                        if member == 3:
-                            print(var, model, member, timeframe, dif)
+                        print(var, model, member, timeframe, dif)
 
-                            process_P_T_perturbations(
-                                model, member, var, timeframe, mode, dif, y0, ye)
-                            process_P_T_perturbations_counterfactual(
-                                model, member, var, timeframe, mode, dif)
+                        process_P_T_perturbations(
+                            model, member, var, timeframe, mode, dif, y0, ye)
+                        process_P_T_perturbations_counterfactual(
+                            model, member, var, timeframe, mode, dif)
 
 
 # %% Cell 6: Run the baseline processing
@@ -1498,7 +1514,7 @@ for model in ["W5E5"]:
 
 
 # %% Cell 8: Run the plotting functions for all different combinations to generate output datasets and plots
-members = [3]  # 1, 3, 4, 6, 3]
+members = [4]  # 1, 3, 4, 6, 3]
 y0 = 1985
 ye = 2014
 # "IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]):
@@ -1513,19 +1529,21 @@ for (m, model) in enumerate(["NorESM"]):
                         for mode in ['dif']:  # , 'std']:
 
                             if plotvar == "DIF" and var == "Precipitation" and mode == 'dif':
-                                diftypes = ["rel"]  # abs','rel']
+                                diftypes = ["abs", "rel"]  # abs','rel']
                             else:
                                 diftypes = ["abs"]
 
                             for dif in diftypes:
                                 print(dif)
-                                plot_P_T_perturbations(
-                                    model, scale, var, timeframe, mode, dif, "save", y0, ye)
+                                # plot_P_T_perturbations(model, scale, var, timeframe, mode, dif, "save", 1901, 1930)
+                                # plot_P_T_perturbations(
+                                #     model, scale, var, timeframe, mode, dif, "save", 1985, 2014)
                                 # plot_P_T_perturbations_counterfactual(
-                                #     model, scale, var, timeframe, mode, dif, "save")
-                                # plot_P_T_input_perturbations(plotvar, model, scale, var, timeframe, mode, dif,"save")
+                                # model, scale, var, timeframe, mode, dif, "save")
+                                plot_P_T_input_perturbations(
+                                    plotvar, model, scale, var, timeframe, mode, dif, "save", y0, ye)
 
-# %%
+# %% Cell 9: Create mosaic subplots
 
 
 def plot_subplots(index, subplots, annotation, diff, timestamps, axes, shp, custom_cmap, timeframe, scale, title, vmin=None, vmax=None):
@@ -1564,6 +1582,7 @@ def plot_subplots(index, subplots, annotation, diff, timestamps, axes, shp, cust
         # Plot data and the Karakoram outline
         im = diff_sel.plot.imshow(ax=ax, vmin=vmin, vmax=vmax, extend='both',
                                   transform=ccrs.PlateCarree(), cmap=custom_cmap, add_colorbar=False)
+
         shp.plot(ax=ax, edgecolor='black', linewidth=1, facecolor='none')
         ax.coastlines(resolution='10m')
         # Find min and max values, and annotate them
@@ -1640,7 +1659,7 @@ y0 = 1985  # if running from 1901 to 1985, than indicate extra id of counterfact
 ye = 2014
 extra_id = ""  # "_counterfactual"
 scale = "Local"
-subplots = "off"
+subplots = "on"
 for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
     for timeframe in ["annual"]:  # :, "seasonal", "monthly"]:
         for mode in ['dif']:  # , 'std']:
@@ -1715,6 +1734,7 @@ for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
 
                 # Provide cbar ranges and colors for plots for different variables, modes (dif/std) and difference types (abs/rel)
                 if var == "Precipitation":
+                    variable_name = "pr"
                     var_suffix = "PR"
                     if mode == 'dif' and diftype == 'rel':
                         mode_suff = 'total'
@@ -1745,6 +1765,7 @@ for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
                             'custom_cmap', colors)
 
                 elif var == "Temperature":
+                    variable_name = "tas"
                     var_suffix = "TEMP"
                     if mode == 'dif':
                         mode_suff = 'total'
@@ -1776,11 +1797,11 @@ for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
                 else:
                     unit = 'Unknown'
 
-                members = [1, 3, 4, 6]  # ,4]
+                members = [1, 3, 4, 6, 4]
                 # members = [1, 1, 1, 1]
                 all_diff = []  # create a dataset to add all member differences
                 all_model_diffs = []
-                models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM"]  # ,"NorESM"]
+                models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
 
                 for (m, model) in enumerate(models):
                     model_diff = []
@@ -1817,7 +1838,7 @@ for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
                 target_crs = 'EPSG:4326'
                 shp = shp.to_crs(target_crs)
 
-                indices = ["A", "B", "C", "D", "E"]  # ,"F"]
+                indices = ["A", "B", "C", "D", "E", "F"]
 
                 # Create the mosaic plot
                 if subplots == "on":
@@ -1840,6 +1861,33 @@ for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
                 # plot the irrmip difference
                 im = plot_subplots(indices[0], subplots, (sum(members)-len(models)+1),
                                    all_diffs_avg, timestamps, axes[indices[0]], shp, custom_cmap, timeframe, scale, f"IRRMIP", vmin=vmin, vmax=vmax)
+
+                # Step 1: Calculate the mean across models for each grid point
+                # mean_diff = xr.concat([diff[variable_name] for diff in all_model_diffs], dim="models").mean(dim="models")
+
+                # Step 2: Calculate the absolute difference between each model and the mean
+                # agreement_mask = xr.concat(
+                #     [np.abs(diff['tas'] - mean_diff) for diff in all_model_diffs],
+                #     dim="models"
+                # )
+
+                sign_diff = xr.concat([np.sign(diff[variable_name])
+                                      for diff in all_model_diffs], dim="models")
+                agreement_on_sign = (abs(sign_diff.mean(dim="models")) >= 0.8)
+
+                # Step 3: Combine the conditions to create the final mask
+                # We need areas where all models are within 0.5 degrees and 80% agree on the sign
+                # & agreement_mask.all(dim="models")
+                within_threshold = agreement_on_sign
+                # Step 4: Convert the mask to 2D by removing the singleton 'variable' dimension if needed
+                within_threshold_2d = within_threshold.astype(int).squeeze()
+
+                # Step 6: Overlay the mask with dots in areas where agreement criteria are met
+                axes[indices[0]].contourf(
+                    all_diffs_avg.lon, all_diffs_avg.lat, within_threshold_2d,
+                    levels=[0.5, 1.5], colors='none', hatches=['...'], transform=ccrs.PlateCarree()
+                )
+
                 if subplots == "on":
                     for (m, model) in enumerate(models):
                         print(m+1)

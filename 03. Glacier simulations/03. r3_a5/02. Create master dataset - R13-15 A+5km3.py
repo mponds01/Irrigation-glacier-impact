@@ -65,10 +65,10 @@ colors = {
     "IPSL-CM6": ["#FFB000"]  # Dark purple to lighter shades
 }
 
-members = [1, 3, 4, 6, 1]
-members_averages = [1, 2, 3, 5]
-models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "W5E5"]
-models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM"]
+members = [1, 3, 4, 6, 4, 1]
+members_averages = [1, 2, 3, 5, 3]
+models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM", "W5E5"]
+models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
 timeframe = "monthly"
 
 y0_clim = 1985
@@ -180,7 +180,7 @@ data_cf = []
 rgi_ids = []
 labels = []
 
-members = [1, 3, 4, 6, 1]
+members = [1, 3, 4, 6, 1, 3]
 # Iterate over models and members, collecting data for boxplots
 # only take the model shortlist as members are handled separately
 for m, model in enumerate(models_shortlist):

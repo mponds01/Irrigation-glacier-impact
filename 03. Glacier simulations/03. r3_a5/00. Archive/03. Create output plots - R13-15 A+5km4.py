@@ -56,40 +56,16 @@ function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniv
 sys.path.append(function_directory)
 
 # %% Cell 1: Set base parameters
-# colors = {
-
-#     "irr": ["#000000", "#777777"],
-#     "noirr": ["#6363FF", "#B1B1FF"],
-#     # much lighter versions of noirr colors
-#     "noirr_com": ["#A6A6FF", "#E0E0FF"],
-#     # much lighter grey fade of irr colors
-#     "irr_com": ["#C0C0C0", "#E0E0E0"],
-#     "cf": ["#FF5722", "#FFA780"],
-#     "Yellow": ["#FFC107", "#FFE08A"]
-# }
-
 colors = {
-    "irr": ["#000000", "#555555"],  # Black and dark gray
-    # Darker brown and golden yellow for contrast
-    "noirr": ["#8B5A00", "#D4A017"],
-    "noirr_com": ["#E3C565", "#F6E3B0"],  # Lighter, distinguishable tan shades
-    "irr_com": ["#B5B5B5", "#D0D0D0"],  # Light gray, no change
-    "cf": ["#008B8B", "#40E0D0"],
-    "cf_com": ["#008B8B", "#40E0D0"]
+    "W5E5": ["#000000", "#777777"],
+    "noirr": ['#6363FF', '#B1B1FF'],
+    "Purple": ['#9C27B0', '#D68FCC'],
+    "Pink": ['#E91E63', '#F4A3B5'],
+    "cf": ['#FF5722', '#FFA780'],
+    "Yellow": ['#FFC107', '#FFE08A']
 }
 
 
-colors_models = {
-    "W5E5": ["#000000"],  # "#000000"],  # Black
-    # Darker to lighter shades of purple
-    "E3SM": ["#785EF0", "#8F7BF1", "#A6A8F2"],
-    # Darker to lighter shades of pink
-    "CESM2": ["#DC267F", "#E58A9E", "#F0A2B6", "#F7BCC4"],
-    # Darker to lighter shades of orange
-    "CNRM": ["#FE6100", "#FE7D33", "#FE9A66", "#FEB799", "#FECDB5", "#FEF1E1"],
-    "IPSL-CM6": ["#FFB000"],
-    "NorESM": ["#FFC107", "#FFE08A"]  # Dark purple to lighter shades
-}
 members = [1, 3, 4, 6, 4, 1]
 members_averages = [1, 2, 3, 5, 3]
 models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM", "W5E5"]
@@ -104,20 +80,6 @@ fig_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBr
 folder_path = '/Users/magaliponds/Documents/00. Programming'
 wd_path = f'{folder_path}/03. Modelled perturbation-glacier interactions - R13-15 A+5km2/'
 sum_dir = os.path.join(wd_path, 'summary')
-
-# %% Cell 1b: Load gdirs
-
-
-wd_path_pkls = f'{wd_path}/pkls_subset_success/'
-
-gdirs_3r_a5 = []
-for filename in os.listdir(wd_path_pkls):
-    if filename.endswith('.pkl'):
-        # f'{gdir.rgi_id}.pkl')
-        file_path = os.path.join(wd_path_pkls, filename)
-        with open(file_path, 'rb') as f:
-            gdir = pickle.load(f)
-            gdirs_3r_a5.append(gdir)
 
 
 # %% Cell 2a: plot mass balance data in histograms and gaussians (subplots and one plot for all member options, boxplot and gaussian only option)
@@ -164,7 +126,7 @@ bin_size = np.linspace(mb_base.B.min(), mb_base.B.max(),
 
 # Plot baseline once if not using subplots
 baseline_plotted = True
-plot_gaussian(ax, mb_base, bin_size, "black", "AllForcings",
+plot_gaussian(ax, mb_base, bin_size, "black", "W5E5.000",
               zorder=1, gaussian_only=gaussian_only)
 
 # Iterate over models and members
@@ -183,7 +145,7 @@ for m, model in enumerate(models_shortlist):  # only perturbed models
         mb_noi = pd.read_csv(
             i_path_noi, index_col=0).to_xarray()  # open datafile
         mb_members_noi.append(mb_noi.B.values)
-        plot_gaussian(ax, mb_noi, bin_size, colors["noirr"][1], label=None,  # sample_id",
+        plot_gaussian(ax, mb_noi, bin_size, colors["noi"][1], label=None,  # sample_id",
                       zorder=members[m] + member + 1, linestyle=linestyle, gaussian_only=gaussian_only)
         # provide the path to datafile from the cf run
         i_path_cf = os.path.join(
@@ -212,7 +174,7 @@ mb_ds_members_noi = mb_noi.copy().to_dataframe()
 mb_ds_members_cf = mb_cf.copy().to_dataframe()
 
 mb_ds_members_noi['B'] = mb_member_average_noi  # add the data to the dataframe
-plot_gaussian(ax, mb_ds_members_noi, bin_size, colors["noirr"][0], f"NoIrr ({sum(members_averages)}-member average)",
+plot_gaussian(ax, mb_ds_members_noi, bin_size, colors["noi"][0], f"NoIrr ({sum(members_averages)}-member average)",
               zorder=members[m] + member + 1, linestyle="--", gaussian_only=gaussian_only)
 mb_ds_members_cf['B'] = mb_member_average_cf  # add the data to the dataframe
 plot_gaussian(ax, mb_ds_members_cf, bin_size, colors["cf"][0], f"NoForcings ({sum(members_averages)}-member average)",
@@ -342,7 +304,7 @@ for r, region in enumerate(regions):
 
         # Plot baseline once if not using subplots
         baseline_plotted = True
-        plot_gaussian(ax, mb_base, bin_size, "black", "AllForcings",
+        plot_gaussian(ax, mb_base, bin_size, "black", "W5E5.000",
                       zorder=1, gaussian_only=False)
 
         linestyle = '-'
@@ -352,7 +314,7 @@ for r, region in enumerate(regions):
                                                                                  'B_cf': 'B'})
 
         # Plot data by subregion
-        plot_gaussian(ax, filtered_mb_noi, bin_size, colors['noirr'][1], f"NoIrr ({sum(members_averages)}-member average)",  # colors[model][member]
+        plot_gaussian(ax, filtered_mb_noi, bin_size, colors['noi'][1], f"NoIrr ({sum(members_averages)}-member average)",  # colors[model][member]
                       zorder=members[m] + member + 1, linestyle=linestyle, gaussian_only=gaussian_only)
         plot_gaussian(ax, filtered_mb_cf, bin_size, colors['cf'][1], f"NoForcings ({sum(members_averages)}-member average)",  # colors[model][member]
                       zorder=members[m] + member + 1, linestyle=linestyle, gaussian_only=gaussian_only)
@@ -372,11 +334,11 @@ for r, region in enumerate(regions):
             ax.annotate(f"{total_glaciers}", xy=(
                 0.95, 0.95), xycoords='axes fraction', fontsize=10, verticalalignment='top', horizontalalignment='right', fontstyle='normal')  # annotate amount of glaciers
             ax.annotate(f"$\\overline{{B}}_{{\\text{{noirr}}}}$\n {round(area_weighted_noirr,1)}", xy=(
-                0.02, 0.75), xycoords='axes fraction', fontsize=10, verticalalignment='top', fontstyle='normal', color=colors['noirr'][0])  # annotate amount of glaciers
+                0.02, 0.75), xycoords='axes fraction', fontsize=10, verticalalignment='top', fontstyle='normal', color=colors['noi'][0])  # annotate amount of glaciers
             ax.annotate(f"$\\overline{{B}}_{{\\text{{noforcings}}}}$\n {round(area_weighted_cf,1)}", xy=(
                 0.02, 0.35), xycoords='axes fraction', fontsize=10, verticalalignment='top', fontstyle='normal', color=colors['cf'][0])  # annotate amount of glaciers
             ax.annotate(f"$\\overline{{B}}_{{\\text{{irr}}}}$ \n {round(area_weighted_irr,1)}", xy=(
-                0.95, 0.75), xycoords='axes fraction', fontsize=10, verticalalignment='top', horizontalalignment='right', fontstyle='normal', color=colors['irr'][0])  # annotate amount of glaciers
+                0.95, 0.75), xycoords='axes fraction', fontsize=10, verticalalignment='top', horizontalalignment='right', fontstyle='normal', color=colors['W5E5'][0])  # annotate amount of glaciers
         elif subplots == False:
             total_glaciers = len(ds.B_irr.values)
             ax.annotate(f"Region 13,14,15 A > 5 km$^2$", xy=(
@@ -397,10 +359,10 @@ fig.text(0.04, 0.5, "Area [km$^{2}$]",
 # Create a legend for the regions and distinguish irr/noirr
 region_legend_patches = [
     mpatches.Patch(
-        color=colors['noirr'][0], label=f"NoIrr ({sum(members_averages)}-member average)"),
+        color=colors['noi'][0], label=f"NoIrr ({sum(members_averages)}-member average)"),
     mpatches.Patch(
         color=colors['cf'][0], label=f"NoForcings ({sum(members_averages)}-member average)"),
-    mpatches.Patch(color='black', label='AllForcings (W5E5.000)'),
+    mpatches.Patch(color='black', label='Irr (W5E5.000)'),
 
     # Create custom lines with specific line styles
     mlines.Line2D([], [], color='grey', linestyle='-',
@@ -408,7 +370,7 @@ region_legend_patches = [
     mlines.Line2D([], [], color='grey', linestyle=':',
                   label='NoIrr - Individual member'),
     mlines.Line2D([], [], color='black', linestyle='-',
-                  label='AllForcings (W5E5.000)'),
+                  label='Irr - W5E5.000'),
 
 ]
 
@@ -552,9 +514,9 @@ for r, region in enumerate(reversed(regions)):
         box_cf = plot_boxplot(
             subregion_ds['B_cf'], position_counter, "", color=colors['cf'][0], alpha=0.5, is_noirr=False)
         box_noirr = plot_boxplot(
-            subregion_ds['B_noirr'], position_counter + v_space_noi, label, color=colors['noirr'][0], alpha=0.5, is_noirr=True)
+            subregion_ds['B_noirr'], position_counter + v_space_noi, label, color=colors['noi'][0], alpha=0.5, is_noirr=True)
         box_irr = plot_boxplot(
-            subregion_ds['B_irr'], position_counter + v_space_irr, label="", color=colors['irr'][0], alpha=0.5, is_noirr=False)
+            subregion_ds['B_irr'], position_counter + v_space_irr, label="", color=colors['W5E5'][0], alpha=0.5, is_noirr=False)
 
         # Annotate the number of glaciers and delta between the two columns
         num_glaciers = len(subregion_ds)
@@ -585,9 +547,9 @@ overall_area_weighted_mean = {
 avg_cf = plot_boxplot(master_ds_avg['B_cf'], position_counter, [
     "Average"], color=colors['cf'][1], alpha=1, is_noirr=False)
 avg_noi = plot_boxplot(master_ds_avg['B_noirr'], position_counter + v_space_noi, [
-    "Average"], color=colors['noirr'][1], alpha=1, is_noirr=True)
+    "Average"], color=colors['noi'][1], alpha=1, is_noirr=True)
 avg_irr = plot_boxplot(master_ds_avg['B_irr'],  position_counter +
-                       v_space_irr, "", color=colors['irr'][1], alpha=1, is_noirr=False)
+                       v_space_irr, "", color=colors['W5E5'][1], alpha=1, is_noirr=False)
 
 
 # Annotate the number of glaciers for the overall average
@@ -603,9 +565,8 @@ mean_dot = Line2D([0], [0], marker='o', color='w',
 median_stripe = Line2D([0], [0], color='black', lw=2, label='Median (stripe)')
 
 # Add a legend for regions, mean (dot), and median (stripe)
-region_legend_patches = [mpatches.Patch(color=colors['irr'][1], label='AllForcings'),
-                         mpatches.Patch(
-                             color=colors['noirr'][1], label='NoIrr'),
+region_legend_patches = [mpatches.Patch(color=colors['W5E5'][1], label='Irr'),
+                         mpatches.Patch(color=colors['noi'][1], label='NoIrr'),
                          mpatches.Patch(
                              color=colors['cf'][1], label='NoForcings'),
                          ]
@@ -742,9 +703,9 @@ for r, region in enumerate(reversed(regions)):
         box_cf = plot_boxplot_awm(
             subregion_ds['B_cf'].values, cf_mean, position_counter, label, color=colors["cf"][1], alpha=1, is_noirr=False)
         box_noirr = plot_boxplot_awm(
-            subregion_ds['B_noirr'].values, noirr_mean, position_counter + v_space_noirr, label, color=colors["noirr"][1], alpha=1, is_noirr=True)
+            subregion_ds['B_noirr'].values, noirr_mean, position_counter + v_space_noirr, label, color=colors["noi"][1], alpha=1, is_noirr=True)
         box_irr = plot_boxplot_awm(
-            subregion_ds['B_irr'], irr_mean, position_counter + v_space_irr, "", color=colors["irr"][1], alpha=1.0, is_noirr=False)
+            subregion_ds['B_irr'], irr_mean, position_counter + v_space_irr, "", color=colors["W5E5"][1], alpha=1.0, is_noirr=False)
 
         # Annotate the number of glaciers and delta between the two columns
         num_glaciers = len(subregion_ds)
@@ -776,9 +737,9 @@ overall_area_weighted_mean = {
 avg_cf = plot_boxplot_awm(master_ds_avg['B_cf'], overall_area_weighted_mean['B_cf'], position_counter +
                           v_space_noirr, ["Average"], color=colors['cf'][1], alpha=1, is_noirr=True)
 avg_noirr = plot_boxplot_awm(master_ds_avg['B_noirr'], overall_area_weighted_mean['B_noirr'], position_counter, [
-    ""], color=colors['noirr'][1], alpha=1, is_noirr=False)
+    ""], color=colors['noi'][1], alpha=1, is_noirr=False)
 avg_irr = plot_boxplot_awm(master_ds_avg['B_irr'], overall_area_weighted_mean['B_irr'], position_counter +
-                           v_space_irr, "", color=colors['irr'][1], alpha=1.0, is_noirr=False)
+                           v_space_irr, "", color=colors['W5E5'][1], alpha=1.0, is_noirr=False)
 
 
 # Annotate the number of glaciers for the overall average
@@ -795,9 +756,8 @@ mean_dot = Line2D([0], [0], marker='o', color='w',
 median_stripe = Line2D([0], [0], color='black', lw=2, label='Median (stripe)')
 
 # Add a legend for regions, mean (dot), and median (stripe)
-region_legend_patches = [mpatches.Patch(color=colors['irr'][1], label='AllForcings'),
-                         mpatches.Patch(
-                             color=colors['noirr'][1], label='NoIrr'),
+region_legend_patches = [mpatches.Patch(color=colors['W5E5'][1], label='Irr'),
+                         mpatches.Patch(color=colors['noi'][1], label='NoIrr'),
                          mpatches.Patch(
                              color=colors['cf'][1], label='NoForcings'),
                          ]
@@ -855,7 +815,7 @@ for v, var in enumerate(variables):
         wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
     baseline = xr.open_dataset(baseline_path)
     ax.plot(baseline["time"], baseline[var].sum(dim="rgi_id") * factors[v],
-            label="AllForcings", color=colors["irr"][0], linewidth=2, zorder=15)
+            label="W5E5.000", color=colors["W5E5"][0], linewidth=2, zorder=15)
     mean_values_irr = (baseline[var].sum(
         dim="rgi_id") * factors[v]).values
 
@@ -881,7 +841,7 @@ for v, var in enumerate(variables):
             climate_run_output = xr.open_dataset(climate_run_opath)
             climate_run_output_cf = xr.open_dataset(climate_run_opath_cf)
             ax.plot(climate_run_output["time"], climate_run_output[var].sum(dim="rgi_id") * factors[v],
-                    label=label, color=colors["noirr"][0], linewidth=2, linestyle="dotted")
+                    label=label, color=colors["noi"][0], linewidth=2, linestyle="dotted")
             ax.plot(climate_run_output_cf["time"], climate_run_output_cf[var].sum(dim="rgi_id") * factors[v],
                     label=None, color=colors["cf"][0], linewidth=2, linestyle="dotted")
 
@@ -896,12 +856,10 @@ for v, var in enumerate(variables):
     stacked_member_data_cf = np.stack(member_data_cf)
 
     # calculate and plot volume/area 10-member mean
-    mean_values_noirr = np.median(stacked_member_data, axis=0).flatten()
-    mean_values_cf = np.median(stacked_member_data_cf, axis=0).flatten()
-    # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
-    # mean_values_cf = np.mean(stacked_member_data_cf, axis=0).flatten()
+    mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
+    mean_values_cf = np.mean(stacked_member_data_cf, axis=0).flatten()
     ax.plot(climate_run_output["time"].values, mean_values_noirr,
-            color=colors["noirr"][0], linestyle='solid', lw=2, label=f"NoIrr ({sum(members_averages)}-member avg)")
+            color=colors["noi"][0], linestyle='solid', lw=2, label=f"NoIrr ({sum(members_averages)}-member avg)")
     ax.plot(climate_run_output_cf["time"].values, mean_values_cf,
             color=colors["cf"][0], linestyle='solid', lw=2, label="NoForcings ({sum(members_averages)}-member avg)")
 
@@ -927,10 +885,10 @@ for v, var in enumerate(variables):
     ax2 = ax.twinx()
     # create a bar chart to show the volume loss by dataset
     ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_noirr[-1],
-            color=colors['noirr'][0], label="Volume Loss NoIrr(%)", alpha=0.6, zorder=0)
+            color=colors['noi'][0], label="Volume Loss NoIrr(%)", alpha=0.6, zorder=0)
 
     ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_irr[-1],
-            color=colors['irr'][0],  label="Volume Loss Irr (%)", alpha=0.6, zorder=2)
+            color=colors['W5E5'][0],  label="Volume Loss Irr (%)", alpha=0.6, zorder=2)
 
     ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_cf[-1],
             color=colors['cf'][0],  label="Volume Loss NoForcings (%)", alpha=0.6, zorder=1)
@@ -949,7 +907,7 @@ for v, var in enumerate(variables):
     min_values = np.min(stacked_member_data, axis=0).flatten()
     max_values = np.max(stacked_member_data, axis=0).flatten()
     ax.fill_between(climate_run_output["time"].values, min_values, max_values,
-                    color=colors["noirr"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range)", zorder=16)
+                    color=colors["noi"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range)", zorder=16)
 
     min_values_cf = np.min(stacked_member_data_cf, axis=0).flatten()
     max_values_cf = np.max(stacked_member_data_cf, axis=0).flatten()
@@ -1096,7 +1054,7 @@ for v, var in enumerate(variables):
             #     dim='rgi_id', how='all')
 
             ax.plot(filtered_baseline["time"], filtered_baseline[var].sum(dim="rgi_id") * factors[v],
-                    label="AllForcings", color=colors["irr"][0], linewidth=2, zorder=15)
+                    label="W5E5.000", color=colors["W5E5"][0], linewidth=2, zorder=15)
             mean_values_irr = (filtered_baseline[var].sum(
                 dim="rgi_id") * factors[v]).values
             ax2 = ax.twinx()
@@ -1130,7 +1088,7 @@ for v, var in enumerate(variables):
                     else:
                         label = "_nolegend_"
                     ax.plot(filtered_climate_run_output["time"], filtered_climate_run_output[var].sum(dim="rgi_id") * factors[v],
-                            label=label, color=colors["noirr"][0], linewidth=2, linestyle="dotted", zorder=3)
+                            label=label, color=colors["noi"][0], linewidth=2, linestyle="dotted", zorder=3)
                     ax.plot(filtered_climate_run_output_cf["time"], filtered_climate_run_output_cf[var].sum(dim="rgi_id") * factors[v],
                             label=None, color=colors["cf"][0], linewidth=2, linestyle="dotted", zorder=3)
 
@@ -1144,12 +1102,8 @@ for v, var in enumerate(variables):
             stacked_member_data = np.stack(filtered_member_data)
             stacked_member_data_cf = np.stack(filtered_member_data_cf)
             # calculate and plot volume/area 10-member mean
-            # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
-            # mean_values_cf = np.mean(stacked_member_data_cf, axis=0).flatten()
-            mean_values_noirr = np.median(
-                stacked_member_data, axis=0).flatten()
-            mean_values_cf = np.median(
-                stacked_member_data_cf, axis=0).flatten()
+            mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
+            mean_values_cf = np.mean(stacked_member_data_cf, axis=0).flatten()
 
             # calculate the volume loss by scenario: irr - noirr and counterfactual
             volume_loss_percentage_noirr = (
@@ -1186,10 +1140,10 @@ for v, var in enumerate(variables):
 
             # create a bar chart to show the volume loss by dataset
             ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_noirr[-1],
-                    color=colors['noirr'][0], label="Volume Loss NoIrr(%)", alpha=0.6, zorder=0)
+                    color=colors['noi'][0], label="Volume Loss NoIrr(%)", alpha=0.6, zorder=0)
 
             ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_irr[-1],
-                    color=colors['irr'][0],  label="Volume Loss Irr (%)", alpha=0.6, zorder=2)
+                    color=colors['W5E5'][0],  label="Volume Loss Irr (%)", alpha=0.6, zorder=2)
 
             ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_cf[-1],
                     color=colors['cf'][0],  label="Volume Loss NoForcings (%)", alpha=0.6, zorder=1)
@@ -1198,7 +1152,7 @@ for v, var in enumerate(variables):
                         linewidth=1.5, zorder=1)  # Dashed line at 0
 
             ax.plot(climate_run_output["time"].values, mean_values_noirr,
-                    color=colors["noirr"][0], linestyle='solid', lw=2, label=f"NoIrr ({sum(members_averages)}-member avg)", zorder=3)
+                    color=colors["noi"][0], linestyle='solid', lw=2, label=f"NoIrr ({sum(members_averages)}-member avg)", zorder=3)
             ax.plot(climate_run_output_cf["time"].values, mean_values_cf,
                     color=colors["cf"][0], linestyle='solid', lw=2, label="fNoForcings ({sum(members_averages)}-member avg)", zorder=3)
 
@@ -1206,7 +1160,7 @@ for v, var in enumerate(variables):
             min_values = np.min(stacked_member_data, axis=0).flatten()
             max_values = np.max(stacked_member_data, axis=0).flatten()
             ax.fill_between(climate_run_output["time"].values, min_values, max_values,
-                            color=colors["noirr"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range)", zorder=3)
+                            color=colors["noi"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range)", zorder=3)
 
             min_values_cf = np.min(stacked_member_data_cf, axis=0).flatten()
             max_values_cf = np.max(stacked_member_data_cf, axis=0).flatten()
@@ -1546,7 +1500,7 @@ models = ["W5E5", "E3SM", "CESM2", "CNRM", "IPSL-CM6"]
 plt.figure(figsize=(10, 6))
 
 hugo_df = hugo_df.rename(columns={'B_hugo': 'B'})
-# plt.scatter(mb_base.rgi_id, mb_base.B,color=colors["irr"][0])
+# plt.scatter(mb_base.rgi_id, mb_base.B,color=colors["W5E5"][0])
 for m, model in enumerate(models):
     for member in range(members[m]):
         print(model)
@@ -1610,7 +1564,7 @@ region_colors = {13: 'blue', 14: 'crimson', 15: 'orange'}
 
 # Load datasets
 df = pd.read_csv(
-    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_2000_2014.csv")
 # df = pd.read_csv(
 #     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
 master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model averages ending with 0 except for IPSL
@@ -1618,10 +1572,10 @@ master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model a
 
 # Normalize values
 # divide all the B values with 1000 to transform to m w.e. average over 30 yrs
-master_ds[['B_noirr', 'B_irr', 'B_delta_irr', 'B_cf',  "B_delta_cf"]] /= 1000
+master_ds[['B_noirr', 'B_irr', 'B_delta']] /= 1000
 
 master_ds = master_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
-                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta_irr', 'B_cf',  "B_delta_cf"]]
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta']]
 
 # Define custom aggregation functions for grouping over the 11 member data
 aggregation_functions = {
@@ -1643,7 +1597,7 @@ aggregation_functions = {
 
 
 master_ds_avg = master_ds.groupby(['rgi_id'], as_index=False).agg({
-    'B_delta_irr': 'mean',
+    'B_delta': 'mean',
     'B_noirr': 'mean',
     # lamda is anonmous functions, returns 11 member average
     'sample_id': lambda _: "11 member average",
@@ -1704,23 +1658,22 @@ listed_colors = [
 
 
 # Plot setup and plot shapefile
-fig, ax = plt.subplots(figsize=(13, 10), subplot_kw={
+fig, ax = plt.subplots(figsize=(10, 7), subplot_kw={
                        'projection': ccrs.PlateCarree()})
-# ax.set_extent([63, 107, 23, 48], crs=ccrs.PlateCarree())
+ax.set_extent([45, 120, 13, 55], crs=ccrs.PlateCarree())
+
 # # Load shapefiles
 shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
 shp = gpd.read_file(shapefile_path).to_crs('EPSG:4326')
 shp.plot(ax=ax, edgecolor='red', linewidth=0, facecolor='lightgrey')
 
-subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected_clipped.shp"
+subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected.shp"
 subregions = gpd.read_file(subregions_path).to_crs('EPSG:4326')
-ax.spines['geo'].set_visible(False)
 
-# Optionally, remove gridlines
-ax.gridlines().set_visible(False)
 
 # Subregion plotting
 centroids = subregions.geometry.centroid
+
 # define movements for the annotation of subregions
 movements = {
     '13-01': [1.2, 0.8],
@@ -1742,6 +1695,8 @@ movements = {
 # annotate subregions
 for attribute, subregion in subregions.groupby('o2region'):
 
+    # facecolor = region_colors.get(
+    #     float(attribute[:2]), "none") if subregion_blocks else "none"
     highlighted_subregions = ["14-02", "14-01", "13-05", "13-02", "13-01"]
 
     alpha = 0.4  # if subregion.o2region.values in highlighted_subregions else 0.4
@@ -1752,42 +1707,52 @@ for attribute, subregion in subregions.groupby('o2region'):
     # Get the boundary of the subregion instead of the centroid
     boundary = subregion.geometry.boundary.iloc[0]
 
-    # boundary_coords = list(boundary.coords)
-    # boundary_x, boundary_y = boundary_coords[0]  # First point on the boundary
-    # boundary_x -= movements[attribute][0]
-    # boundary_y -= movements[attribute][1]
-    # # Annotate or place text near the boundary
-    # if names == "Code":
-    #     ax.text(boundary_x, boundary_y, f"{subregion['o2region'].iloc[0]}",
-    #             horizontalalignment='center', fontsize=10, color='black', fontweight='bold')
-    # else:
-    #     ax.text(boundary_x, boundary_y, f"{subregion['o2region'].iloc[0]}\n{subregion['full_name'].iloc[0]}",
-    #             horizontalalignment='center', fontsize=10, color='black', fontweight='bold')
+    boundary_coords = list(boundary.coords)
+    boundary_x, boundary_y = boundary_coords[0]  # First point on the boundary
+    boundary_x -= movements[attribute][0]
+    boundary_y -= movements[attribute][1]
+    # Annotate or place text near the boundary
+    if names == "Code":
+        ax.text(boundary_x, boundary_y, f"{subregion['o2region'].iloc[0]}",
+                horizontalalignment='center', fontsize=10, color='black', fontweight='bold')
+    else:
+        ax.text(boundary_x, boundary_y, f"{subregion['o2region'].iloc[0]}\n{subregion['full_name'].iloc[0]}",
+                horizontalalignment='center', fontsize=10, color='black', fontweight='bold')
 
-    # centroid = subregion.geometry.centroid.iloc[0]
-    # centroid_x, centroid_y = centroid.x, centroid.y
-    # if attribute == "14-02":
-    #     ax.plot([centroid_x, boundary_x-1.5], [centroid_y,
-    #             boundary_y-0.3], color='black', linewidth=1)
-    # if attribute == "14-03":
-    #     ax.plot([centroid_x, boundary_x], [centroid_y,
-    #             boundary_y+0.5], color='black', linewidth=1)
+    centroid = subregion.geometry.centroid.iloc[0]
+    centroid_x, centroid_y = centroid.x, centroid.y
+    if attribute == "14-02":
+        ax.plot([centroid_x, boundary_x-1.5], [centroid_y,
+                boundary_y-0.3], color='black', linewidth=1)
+    if attribute == "14-03":
+        ax.plot([centroid_x, boundary_x], [centroid_y,
+                boundary_y+0.5], color='black', linewidth=1)
 
 
 # Create a ListedColormap with some colors (example)
 custom_cmap = clrs.ListedColormap(listed_colors)
+
+# Define the boundaries for each color block
 boundaries = [-0.75, -0.65, -0.55, -0.45, -0.35, -
-              0.25, -0.15, -0.05, 0.05, 0.15, 0.25, 0.35]  # Define the boundaries for each color block
+              0.25, -0.15, -0.05, 0.05, 0.15, 0.25, 0.35]
+
 # Adjust the boundaries_ticks to match the boundaries
 boundaries_ticks = [-0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3]
+
 # Create the BoundaryNorm with the defined boundaries
 norm = clrs.BoundaryNorm(boundaries, custom_cmap.N, clip=False)
+
+# Create the colorbar
 cbar = plt.colorbar(plt.cm.ScalarMappable(cmap=custom_cmap, norm=norm),
-                    ax=ax, boundaries=boundaries, ticks=boundaries_ticks)  # Create the colorbar
-cbar.set_label('$B_{Irr}$ (m w.e. yr$^{-1}$)',
-               fontsize=12)  # Label for the colorbar
+                    ax=ax, boundaries=boundaries, ticks=boundaries_ticks)
+
+# Label for the colorbar
+cbar.set_label('$B_{Irr}$ (m w.e. yr$^{-1}$)', fontsize=12)
+
 # Adjust labels to 1 decimal place
 cbar.ax.set_yticklabels([f'{b:.1f}' for b in boundaries_ticks])
+
+
 scatter = ax.scatter(gdf.geometry.x, gdf.geometry.y,
                      s=np.sqrt(gdf['rgi_area_km2'])*3, c=gdf['B_irr'], cmap=custom_cmap, norm=norm, edgecolor='k', alpha=1)
 
@@ -1798,7 +1763,15 @@ ax.tick_params(axis='both', which='major', labelsize=12)
 ax.set_xlabel('Longitude', fontsize=12)
 ax.set_ylabel('Latitude', fontsize=12)
 
+
+# cbar = plt.colorbar(plt.cm.ScalarMappable(
+#     cmap=custom_cmap, norm=norm), cax=cbar_ax, orientation='horizontal')
+# cbar.ax.tick_params(labelsize=12)
+
+
 # Add volume legend
+# Define the custom sizes (in data units) for the legend
+# custom_sizes = [5, 50, 500]  # Example sizes for the legend - volume
 custom_sizes = [200, 500, 1000, 2000]  # Example sizes for the legend -area
 # Create labels for these sizes
 size_labels = [f"{size:.0f}" for size in custom_sizes]
@@ -1811,90 +1784,71 @@ legend_handles = [plt.scatter([], [], s=np.sqrt(size)*3, edgecolor='k', facecolo
 fig.legend(legend_handles, size_labels, loc="lower center", title="Total Area (km$^2$)", title_fontsize=12,
            bbox_to_anchor=(0.22, -0.1), ncol=5, fontsize=12)
 
+
 # Define and iterate over grid layout
 layout = [["13.01", "13.03", "13.04", "13.05", "13.06"], ["13.02", "", "", "", "13.07"], [
     "14.01", "14.02", "", "", "13.08"], ["14.03", "15.01", "15.02", "15.03", "13.09"]]
-# grid_positions = [[-0.0 + col * (0.16 + 0.02), 0.8 - (0.1 + 0.05) * row - 0.05, 0.13, 0.14]
-#                   if layout[row][col] else None for row in range(4) for col in range(5)]
-movements_sp = {
-    '13-01': [4.0, 3.0],   # Move further to the top-right
-    '13-02': [10.0, 4.0],  # Move further to the top-right
-    '13-03': [10.0, 3.0],  # Move further to the right
-    '13-04': [-20, 3.0],   # Move further to the left
-    '13-05': [-8, 2.0],    # Move further to the top-left
-    '13-06': [18.0, -6.0],  # Move further down and to the right
-    '13-07': [6.0, 3.0],   # Move further up and to the right
-    '13-08': [-15.0, -8.0],  # Move further down and to the left
-    '13-09': [-8.0, 5.0],  # Move further to the top-left
-    '14-01': [3.0, 4.0],   # Move further to the top-right
-    '14-02': [0.0, -10.0],  # Move further down
-    '14-03': [3.0, 8.0],   # Move further to the top-right
-    '15-01': [-10.0, 7.0],  # Move further to the top-left
-    '15-02': [6.0, 4.5],   # Move further to the top-right
-    '15-03': [-3.0, 8.0],  # Move further to the top-left
-}
-
 grid_positions = [[0.12 + col * (0.14 + 0.04), 0.82 - (0.14 + 0.07) * row - 0.05, 0.13, 0.14]
                   if layout[row][col] else None for row in range(4) for col in range(5)]
+# Plot subregion time series
+# for idx, pos in enumerate(grid_positions):
+#     if pos:
+#         ax_callout = fig.add_axes(pos)
+#         region_id = layout[idx // 5][idx % 5]
+#         print(region_id)
+#         subregion_ds = master_ds_avg[master_ds_avg['rgi_subregion'].str.contains(
+#             f"{region_id}")]
 
-for idx, pos in enumerate(grid_positions):
-    if pos:
-        ax_callout = fig.add_axes(pos)
-        region_id = layout[idx // 5][idx % 5]
-        print(region_id)
-        subregion_ds = master_ds_avg[master_ds_avg['rgi_subregion'].str.contains(
-            f"{region_id}")]
+#         # Baseline and model plotting
+#         baseline_path = os.path.join(
+#             wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
+#         baseline = xr.open_dataset(baseline_path)
+#         # Check if there are any matching rgi_id values
+#         # Ensure that rgi_id values exist in both datasets
+#         rgi_ids_in_baseline = baseline['rgi_id'].values
+#         matching_rgi_ids = np.intersect1d(
+#             rgi_ids_in_baseline, subregion_ds.rgi_id.values)
+#         baseline_filtered = baseline.sel(rgi_id=matching_rgi_ids)
 
-        # Baseline and model plotting
-        baseline_path = os.path.join(
-            wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
-        baseline = xr.open_dataset(baseline_path)
-        # Check if there are any matching rgi_id values
-        # Ensure that rgi_id values exist in both datasets
-        rgi_ids_in_baseline = baseline['rgi_id'].values
-        matching_rgi_ids = np.intersect1d(
-            rgi_ids_in_baseline, subregion_ds.rgi_id.values)
-        baseline_filtered = baseline.sel(rgi_id=matching_rgi_ids)
+#         # Plot model member data
+#         ax_callout.plot(baseline_filtered["time"].values, baseline_filtered['volume'].sum(dim="rgi_id") * 1e-9,
+#                         label="W5E5.000", color="black", linewidth=2, zorder=15)
+#         filtered_member_data = []
+#         for m, model in enumerate(models_shortlist):
+#             for i in range(members_averages[m]):
+#                 sample_id = f"{model}.00{i + 1}" if members_averages[m] > 1 else f"{model}.000"
+#                 climate_run_output = xr.open_dataset(os.path.join(
+#                     sum_dir, f'climate_run_output_perturbed_{sample_id}.nc'))
+#                 climate_run_output = climate_run_output.where(
+#                     climate_run_output['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
+#                 ax_callout.plot(climate_run_output["time"].values, climate_run_output["volume"].sum(
+#                     dim="rgi_id") * 1e-9, label=sample_id, color="grey", linewidth=2, linestyle="dotted")
+#                 filtered_member_data.append(
+#                     climate_run_output["volume"].sum(dim="rgi_id").values * 1e-9)
 
-        # Plot model member data
-        ax_callout.plot(baseline_filtered["time"].values, baseline_filtered['volume'].sum(dim="rgi_id") * 1e-9,
-                        label="W5E5.000", color="black", linewidth=2, zorder=15)
-        filtered_member_data = []
-        for m, model in enumerate(models_shortlist):
-            for i in range(members_averages[m]):
-                sample_id = f"{model}.00{i + 1}" if members_averages[m] > 1 else f"{model}.000"
-                climate_run_output = xr.open_dataset(os.path.join(
-                    sum_dir, f'climate_run_output_perturbed_{sample_id}.nc'))
-                climate_run_output = climate_run_output.where(
-                    climate_run_output['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
-                ax_callout.plot(climate_run_output["time"].values, climate_run_output["volume"].sum(
-                    dim="rgi_id") * 1e-9, label=sample_id, color="grey", linewidth=2, linestyle="dotted")
-                filtered_member_data.append(
-                    climate_run_output["volume"].sum(dim="rgi_id").values * 1e-9)
+#         # Mean and range plotting
+#         mean_values = np.mean(filtered_member_data, axis=0).flatten()
+#         min_values = np.min(filtered_member_data, axis=0).flatten()
+#         max_values = np.max(filtered_member_data, axis=0).flatten()
+#         ax_callout.plot(climate_run_output["time"].values, mean_values,
+#                         color="blue", linestyle='dashed', lw=2, label=f"{sum(members_averages)}-member average")
+#         ax_callout.fill_between(
+#             climate_run_output["time"].values, min_values, max_values, color="lightblue", alpha=0.3)
 
-        # Mean and range plotting
-        mean_values = np.mean(filtered_member_data, axis=0).flatten()
-        min_values = np.min(filtered_member_data, axis=0).flatten()
-        max_values = np.max(filtered_member_data, axis=0).flatten()
-        ax_callout.plot(climate_run_output["time"].values, mean_values,
-                        color="blue", linestyle='dashed', lw=2, label=f"{sum(members_averages)}-member average")
-        ax_callout.fill_between(
-            climate_run_output["time"].values, min_values, max_values, color="lightblue", alpha=0.3)
-
-        # Subplot formatting
-        ax_callout.set_title(region_id, fontweight="bold", bbox=dict(
-            facecolor='white', edgecolor='none', pad=1))
-        # Count the number of glaciers (assuming each 'rgi_id' represents a glacier)
-        glacier_count = subregion_ds['rgi_id'].nunique()
-        # Add number of glaciers as a text annotation in the lower left corner
-        ax_callout.text(0.05, 0.05, f"{glacier_count}",
-                        transform=ax_callout.transAxes, fontsize=12, verticalalignment='bottom', fontstyle='italic')
-        # ax_callout.set_xlim(-3, 3)
-        # ax_callout.set_ylim(0, 20)
-        if idx < len(grid_positions) - 5:
-            ax_callout.tick_params(axis='x', labelbottom=False)
-        # if idx % 5 != 0:
-            ax_callout.tick_params(axis='y', labelleft=False)
+#         # Subplot formatting
+#         ax_callout.set_title(region_id, fontweight="bold", bbox=dict(
+#             facecolor='white', edgecolor='none', pad=1))
+#         # Count the number of glaciers (assuming each 'rgi_id' represents a glacier)
+#         glacier_count = subregion_ds['rgi_id'].nunique()
+#         # Add number of glaciers as a text annotation in the lower left corner
+#         ax_callout.text(0.05, 0.05, f"{glacier_count}",
+#                         transform=ax_callout.transAxes, fontsize=12, verticalalignment='bottom', fontstyle='italic')
+#         # ax_callout.set_xlim(-3, 3)
+#         # ax_callout.set_ylim(0, 20)
+#         if idx < len(grid_positions) - 5:
+#             ax_callout.tick_params(axis='x', labelbottom=False)
+#         # if idx % 5 != 0:
+#             ax_callout.tick_params(axis='y', labelleft=False)
 
 # Sample data for the example plot (volume vs. time)
 time = np.linspace(1985, 2015, 5)  # Simulated time points
@@ -1907,7 +1861,7 @@ volume_members2 = [29, 26, 24, 22, 18]  # Individual members
 fig_legend = fig.add_axes([0.5, -0.18, 0.13, 0.14])  # Small plot size
 
 # Plot the sample data
-fig_legend.plot(time, volume_irr, label='AllForcings (W5E5)',
+fig_legend.plot(time, volume_irr, label='Irr (W5E5)',
                 color='black', linewidth=2)  # Black line for Irr
 fig_legend.plot(time, volume_noirr, label='fNoIrr ({sum(members_averages)}-member average)',
                 color='blue', linestyle='-', linewidth=2)  # Blue line for NoIrr average
@@ -1974,7 +1928,6 @@ plt.ylabel('Area (km²)')
 plt.title('Total Area by RGI Subregion')
 plt.xticks(rotation=90)  # Rotate x-axis labels for readability
 plt.show()
-
 
 # %% Cell 10: Show the area by subregion
 
@@ -2052,76 +2005,7 @@ for i, subregion in enumerate(subregions):
     ax.annotate(total_glaciers, xy=(0.05, 0.8), xycoords='axes fraction',
                 fontsize=10, fontstyle='italic')
 
-# %% Cell 11a: Create new way nan mask
-
-
-members = [3, 4, 6, 4, 1, 1]
-models = ["E3SM", "CESM2", "CNRM", "NorESM", "W5E5", "IPSL-CM6"]
-
-overview_df = pd.DataFrame()
-
-for m, model in enumerate(models):
-    for member in range(members[m]):
-        df_tot = pd.DataFrame()
-        sample_id = f"{model}.00{member}"
-
-        for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc"]):
-            calendar_year = 2014
-            if model != "W5E5":
-                filepath = [f'climate_run_output_perturbed_{sample_id}.nc',
-                            f'climate_run_output_perturbed_{sample_id}_comitted_random.nc',
-                            f'climate_run_output_perturbed_{sample_id}_comitted_random_counterfactual.nc'][f]
-                # f'climate_run_output_perturbed_{sample_id}_comitted_cst.nc'][f]
-
-            ds = xr.open_dataset(os.path.join(
-                # log_dir, f"stats_perturbed_{sample_id}_climate_run_test.csv"))
-                sum_dir, filepath))
-            ds_zeros = ds.volume.sel(time=2014).to_dataframe()
-            df_individual = ds_zeros[["calendar_year", "volume"]].reset_index()
-            # df_tot = pd.concat([df_tot, df_individual], ignore_index=True)
-
-            if df_tot.empty:
-                df_tot = df_individual
-            if f == 1:
-                # Merge based on rgi_id
-                df_tot = pd.merge(
-                    df_tot,
-                    df_individual[["rgi_id", "volume", "calendar_year"]],
-                    on="rgi_id",
-                    how="outer",
-                    suffixes=("", "_noirr")
-                )
-            if f == 2:
-                # Merge based on rgi_id
-                df_tot = pd.merge(
-                    df_tot,
-                    df_individual[["rgi_id", "volume", "calendar_year"]],
-                    on="rgi_id",
-                    how="outer",
-                    suffixes=("", "_noforcing")
-                )
-        df_zero_volume = df_tot[
-            pd.isna(df_tot["volume_noirr"]) | pd.isna(
-                df_tot["volume_noforcing"]) | pd.isna(df_tot["volume"])
-        ]
-    overview_df = pd.concat([overview_df, df_zero_volume], ignore_index=True)
-
-
-unique_rgi_ids = overview_df['rgi_id'].unique()
-print(len(unique_rgi_ids))
-unique_rgi_ids = pd.DataFrame(unique_rgi_ids, columns=['rgi_ids'])
-unique_rgi_ids.to_csv(os.path.join(
-    wd_path, 'masters', 'nan_mask_comitted_random.csv'))
-
-# Save the result to a CSV
-output_path = os.path.join(
-    wd_path, "masters", "nan_mask_all_models_volume_comitted_random.csv")
-unique_rgi_ids.to_csv(output_path, index=False)
-
-
-# %% CEll 11b: Create output plots for Area and volume Comitted - 2 axis
-members_averages = [2, 3,  3,  5, 1]
-models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM", "IPSL-CM6"]
+# %% TEST: Create output plots for Area and volume Comitted
 
 # define the variables for p;lotting
 variables = ["volume", "area"]
@@ -2131,21 +2015,6 @@ variable_names = ["Volume", "Area"]
 variable_axes = ["Volume [km$^3$]", "Area [km$^2$]"]
 use_multiprocessing = False
 
-output_csv_path = os.path.join(wd_path, "masters", f"error_rgi_ids.csv")
-error_ids = pd.read_csv(output_csv_path)['rgi_id'].tolist()
-subset_gdirs = gdirs_3r_a5[:100]
-
-nan_mask = pd.read_csv(os.path.join(
-    wd_path, "masters", "nan_mask_all_models_volume.csv")).rgi_ids
-# Remove duplicates if needed
-nan_mask = set(pd.DataFrame({'rgi_id': nan_mask.unique()}).rgi_id.to_numpy())
-rgi_ids_test = []
-for gdir in subset_gdirs:
-    rgi_ids_test.append(gdir.rgi_id)
-rgi_ids_test = [rgi_id for rgi_id in rgi_ids_test if rgi_id not in nan_mask]
-print(len(rgi_ids_test))
-
-
 # repeat the loop for area and volume
 for v, var in enumerate(variables):
     print(var)
@@ -2153,146 +2022,77 @@ for v, var in enumerate(variables):
     fig, ax = plt.subplots(figsize=(7, 4))  # create a new figure
 
     # create a timeseries for all the model members to add the data, needed to calculate averages later
+    member_data_noirr = []
 
-    linestyles = ['solid', 'solid']
-    # for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc"]):
-    for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_cst_test.nc"]):
-        if f == 1:
-            color_id = "_com"
-            legend_id = "committed"
-            bar_values = 50
-        else:
-            color_id = ""
-            legend_id = ""
-            bar_values = 20
-            ax2 = ax.twinx()
+    # load and plot the baseline data
+    baseline_path = os.path.join(
+        wd_path, "summary", f"climate_run_output_baseline_W5E5.000_comitted.nc")
+    baseline = xr.open_dataset(baseline_path)
+    ax.plot(baseline["time"], baseline[var].sum(dim="rgi_id") * factors[v],
+            label="W5E5.000", color=colors["W5E5"][0], linewidth=2, zorder=15)
+    mean_values_irr = (baseline[var].sum(
+        dim="rgi_id") * factors[v]).values
 
-        print(f)
-        # load and plot the baseline data
-        baseline_path = os.path.join(
-            wd_path, "summary", filepath)
-        baseline = xr.open_dataset(baseline_path)
-        # if f == 0:
-        # rgi_ids_test = baseline.rgi_id.values[:10]
-        baseline = baseline.where(
-            baseline.rgi_id.isin(rgi_ids_test), drop=True)
-        # print(baseline[var].sum(
-        # dim="rgi_id").values * factors[v])
-        # print(len(baseline.rgi_id))
+    # loop through all the different model x member combinations
+    for m, model in enumerate(models_shortlist):
+        for i in range(members_averages[m]):
 
-        ax.plot(baseline["time"], baseline[var].sum(dim="rgi_id") * factors[v],
-                label=f"W5E5.000 {legend_id}", color=colors[f"irr{color_id}"][0], linewidth=2, zorder=15, linestyle=linestyles[f])
-        print("baseline time from:", baseline["time"][0].values)
-        print("baseline time to:", baseline["time"][-1].values)
+            # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
+            # IPSL-CM6 only has 1 member, so the sample_id must end with 000
+            if members_averages[m] > 1:
+                i += 1
+                label = None
+            else:
+                label = "GCM member"
 
-        mean_values_irr = (baseline[var].sum(
-            dim="rgi_id") * factors[v]).values
-        # print(baseline[var].sum(
-        # dim="rgi_id").values * factors[v])
+            sample_id = f"{model}.00{i}"
 
-        # print(len(baseline[var][0].values))
+            # load and plot the data from the climate output run and counterfactual
+            climate_run_opath_noirr = os.path.join(
+                sum_dir, f'climate_run_output_perturbed_{sample_id}_comitted.nc')
+            climate_run_output_noirr = xr.open_dataset(climate_run_opath_noirr)
+            ax.plot(climate_run_output_noirr["time"], climate_run_output_noirr[var].sum(dim="rgi_id") * factors[v],
+                    label=None, color=colors["noirr"][1], linewidth=2, linestyle="dotted")
 
-        # # loop through all the different model x member combinations
+            # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
+            member_data_noirr.append(climate_run_output_noirr[var].sum(
+                dim="rgi_id").values * factors[v])
+    # stack the member data
+    stacked_member_data_noirr = np.stack(member_data_noirr)
 
-    # for f in range(2):
-        member_data_noirr = []
-        nan_runs_noirr = []
+    # calculate and plot volume/area 10-member mean
+    mean_values_noirr = np.mean(stacked_member_data_noirr, axis=0).flatten()
+    ax.plot(climate_run_output_noirr["time"].values, mean_values_noirr,
+            color=colors["noirr"][0], linestyle='solid', lw=3, label=f"noirr ({sum(members_averages)}-member avg)")
 
-        for m, model in enumerate(models_shortlist):
-            for i in range(members_averages[m]):
-                # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
-                # IPSL-CM6 only has 1 member, so the sample_id must end with 000
-                if members_averages[m] > 1:
-                    i += 1
-                    label = None
-                else:
-                    label = "GCM member"
+    # calculate and plot volume/area 10-member min and max for ribbon
+    min_values_noirr = np.min(stacked_member_data_noirr, axis=0).flatten()
+    max_values_noirr = np.max(stacked_member_data_noirr, axis=0).flatten()
+    ax.fill_between(climate_run_output_noirr["time"].values, min_values_noirr, max_values_noirr,
+                    color=colors["noirr"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range)", zorder=16)
 
-                sample_id = f"{model}.00{i}"
-                filepath = [f'climate_run_output_perturbed_{sample_id}.nc',
-                            # f'climate_run_output_perturbed_{sample_id}_comitted_random.nc'][f]
-                            f'climate_run_output_perturbed_{sample_id}_comitted_cst_test.nc'][f]
-                print(sample_id)
-                # load and plot the data from the climate output run and counterfactual
-                climate_run_opath_noirr = os.path.join(
-                    sum_dir, filepath)  # f'climate_run_output_perturbed_{sample_id}_comitted.nc')
-                climate_run_output_noirr = xr.open_dataset(
-                    climate_run_opath_noirr)
-                # if f == 0:
-                # rgi_ids_test=baseline.rgi_id[:10]
-                climate_run_output_noirr = climate_run_output_noirr.where(
-                    climate_run_output_noirr.rgi_id.isin(rgi_ids_test), drop=True)
-                # print(len(climate_run_output_noirr.rgi_id))
-                # print(climate_run_output_noirr[var].sum(
-                # dim="rgi_id").values * factors[v])
-                # nan_mask = 0
-                # nan_mask = climate_run_output_noirr['volume'].isnull()
-                # nan_runs = climate_run_output_noirr.where(nan_mask, drop=True)
-                # # print(nan_runs)
-                # nan_runs_noirr.extend(nan_runs['rgi_id'].values)
-                ax.plot(climate_run_output_noirr["time"], climate_run_output_noirr[var].sum(dim="rgi_id") * factors[v],
-                        label=None, color=colors[f"noirr{color_id}"][1], linewidth=1, linestyle=linestyles[f])
-                print("climate run output time from:",
-                      climate_run_output_noirr["time"][0].values)
-                print("climate run output time to:",
-                      climate_run_output_noirr["time"][-1].values)
+    # calculate the volume loss by scenario: irr - noirrrr and counterfactual
+    volume_loss_percentage_noirr = (
+        (mean_values_noirr - mean_values_irr[0]) / mean_values_irr[0]) * 100
+    volume_loss_percentage_irr = (
+        (mean_values_irr - mean_values_irr[0]) / mean_values_irr[0]) * 100
+    # #create a dataframe with the volume loss percentages and absolute values
+    loss_df_subregion = pd.DataFrame({
+        'time': climate_run_output_noirr["time"].values,
+        # 'subregion': np.repeat(region_id, len(climate_run_output_noirr["time"])),
+        'volume_irr': mean_values_irr,
+        'volume_noirr': mean_values_noirr,
+        'volume_loss_percentage_irr': volume_loss_percentage_irr,
+        'volume_loss_percentage_noirr': volume_loss_percentage_noirr,
+    })
 
-                # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
-                member_data_noirr.append(climate_run_output_noirr[var].sum(
-                    dim="rgi_id").values * factors[v])
-                # print(len(climate_run_output_noirr[var][0].values))
+    ax2 = ax.twinx()
+    # # create a bar chart to show the volume loss by dataset
+    ax2.bar(climate_run_output_noirr["time"].values[-1]+50, volume_loss_percentage_noirr[-1],
+            color=colors['noirr'][0], label="Volume Loss NoIrr(%)", alpha=0.6, zorder=0, width=10)
 
-        # stack the member data
-        stacked_member_data = np.stack(member_data_noirr)
-        all_nan_rgi_ids = np.unique(nan_runs_noirr)
-        df_nan_rgi_ids = pd.DataFrame({'rgi_id': all_nan_rgi_ids})
-        output_csv_path = os.path.join(
-            wd_path, "masters", f"error_rgi_ids.csv")
-        df_nan_rgi_ids.to_csv(output_csv_path, index=False)
-
-        # calculate and plot volume/area 10-member mean
-        # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
-        mean_values_noirr = np.median(stacked_member_data, axis=0).flatten()
-        ax.plot(climate_run_output_noirr["time"].values, mean_values_noirr,
-                color=colors[f"noirr{color_id}"][0], linestyle=linestyles[f], lw=2, label=f"NoIrr ({sum(members_averages)}-member avg) {legend_id}")
-
-        # calculate and plot volume/area 10-member min and max for ribbon
-        min_values_noirr = np.min(stacked_member_data, axis=0).flatten()
-        max_values_noirr = np.max(stacked_member_data, axis=0).flatten()
-        ax.fill_between(climate_run_output_noirr["time"].values, min_values_noirr, max_values_noirr,
-                        color=colors[f"noirr{color_id}"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range) {legend_id}", zorder=16)
-
-        if f == 0:
-            var_value_1985 = mean_values_irr[0]
-
-        # calculate the volume loss by scenario: irr - noirrrr and counterfactual
-        volume_loss_percentage_noirr = (
-            (mean_values_noirr - var_value_1985) / var_value_1985) * 100
-        volume_loss_percentage_irr = (
-            (mean_values_irr - var_value_1985) / var_value_1985) * 100
-        # #create a dataframe with the volume loss percentages and absolute values
-
-        loss_df_subregion = pd.DataFrame({
-            'time': climate_run_output_noirr["time"].values,
-            # 'subregion': np.repeat(region_id, len(climate_run_output_noirr["time"])),
-            'volume_irr': mean_values_irr,
-            'volume_noirr': mean_values_noirr,
-            'volume_loss_percentage_irr': volume_loss_percentage_irr,
-            'volume_loss_percentage_noirr': volume_loss_percentage_noirr,
-        })
-
-        # o_folder_name = f"{wd_path}masters/master_gdirs_r3_a5_volume_evolution{color_id}.csv"
-        # loss_df_subregion.to_csv(o_folder_name)
-
-        # # create a bar chart to show the volume loss by dataset
-        # ax2.bar(climate_run_output_noirr["time"].values[-1]+bar_values, volume_loss_percentage_noirr[-1],
-        #         color=colors[f'noirr{color_id}'][0], label="Volume Loss NoIrr(%)", alpha=1, zorder=0, width=15)
-
-        # ax2.bar(climate_run_output_noirr["time"].values[-1]+bar_values, volume_loss_percentage_irr[-1],
-        #         color=colors[f'irr{color_id}'][0],  label="Volume Loss Irr (%)", alpha=1, zorder=2, width=15)
-
-        # if f==0:
-        # ax.axvline(climate_run_output_noirr["time"].values[-1], color="black", lw=1, zorder=100, ls="--")
+    ax2.bar(climate_run_output_noirr["time"].values[-1]+50, volume_loss_percentage_irr[-1],
+            color=colors['W5E5'][0],  label="Volume Loss Irr (%)", alpha=0.6, zorder=2, width=10)
 
     ax2.axhline(0, color='black', linestyle='--',
                 linewidth=1, zorder=1)  # Dashed line at 0
@@ -2300,13 +2100,12 @@ for v, var in enumerate(variables):
         # Adjust this range to make the secondary axis extend larger
         ax2.set_ylim(-6, 5)
     if var == "volume":
-        print(var)
-        ax2.set_ylim(-12, 5)
+        print(volume)
+        ax2.set_ylim(-20, 0)
 
     # Step 1: Set the value on ax1 where we want 0 on ax2 to align
     # e.g., the first value of data1
-    # align_value = (baseline[var].sum(dim="rgi_id") * factors[v])[0].values
-    align_value = var_value_1985
+    align_value = (baseline[var].sum(dim="rgi_id") * factors[v])[0].values
 
     # Step 2: Calculate the offset required for ax2 limits
     mpl_axes_aligner.align.yaxes(ax, align_value, ax2, 0)
@@ -2326,698 +2125,13 @@ for v, var in enumerate(variables):
     # specify and create a folder for saving the data (if it doesn't exists already) and save the plot
     o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/0{v + 1}. {variable_names[v]}/00. Combined"
     os.makedirs(o_folder_data, exist_ok=True)
-    # o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted_random.png"
-    o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted_cst_test.png"
+    o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted.png"
     # plt.savefig(o_file_name, bbox_inches='tight')
 
-# %% plot comitted data - % axis
 
-members_averages = [2, 3,  3,  5, 1]
-models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM", "IPSL-CM6"]
+# %% Check climate run otuput for area - why not same starting value for cf and normal
 
-# define the variables for p;lotting
-variables = ["volume", "area"]
-factors = [10**-9, 10**-6]
+# Select the first timestep for 'area' in each dataset
+area_first_com = climate_run_output_com['area']
 
-variable_names = ["Volume", "Area"]
-variable_axes = ["Volume compared to 1985 Irr-scenario [%]",
-                 "Area compared to 1985 Irr-scenario [%]"]
-use_multiprocessing = False
-
-output_csv_path = os.path.join(wd_path, "masters", f"error_rgi_ids.csv")
-error_ids = pd.read_csv(output_csv_path)['rgi_id'].tolist()
-subset_gdirs = gdirs_3r_a5[:100]
-
-nan_mask = pd.read_csv(os.path.join(
-    wd_path, "masters", "nan_mask_all_models_volume_comitted_random.csv")).rgi_ids
-# Remove duplicates if needed
-nan_mask = set(pd.DataFrame({'rgi_id': nan_mask.unique()}).rgi_id.to_numpy())
-rgi_ids_test = []
-for gdir in subset_gdirs:
-    rgi_ids_test.append(gdir.rgi_id)
-rgi_ids_test = [rgi_id for rgi_id in rgi_ids_test if rgi_id not in nan_mask]
-print(len(rgi_ids_test))
-
-
-# repeat the loop for area and volume
-for v, var in enumerate(variables):
-    print(var)
-    # create a new plot for both area and volume
-    fig, ax = plt.subplots(figsize=(7, 4))  # create a new figure
-
-    # create a timeseries for all the model members to add the data, needed to calculate averages later
-
-    linestyles = ['solid', 'solid', 'solid']
-    for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc"]):
-        # for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_cst_test.nc"]):
-        if f == 1:
-            run_type = "noirr"
-            color_id = "_com"
-            legend_id = "committed"
-            bar_values = 50
-        if f == 2:
-            run_type = "cf"
-            color_id = "_com"
-            legend_id = "committed"
-            bar_values = 50
-        else:
-            run_type = "irr"
-            color_id = ""
-            legend_id = ""
-            bar_values = 20
-
-        print(f)
-        # load and plot the baseline data
-        baseline_path = os.path.join(
-            wd_path, "summary", filepath)
-        baseline = xr.open_dataset(baseline_path)
-        # if f == 0:
-        # rgi_ids_test = baseline.rgi_id.values[:10]
-        baseline = baseline.where(
-            baseline.rgi_id.isin(rgi_ids_test), drop=True)
-        # print(baseline[var].sum(
-        # dim="rgi_id").values * factors[v])
-        # print(len(baseline.rgi_id))
-        if f == 0:
-            resp_value = baseline[var].sum(dim="rgi_id")[0].values * factors[v]
-        if f:
-            ax.plot(baseline["time"], (baseline[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
-                    label=f"AllForcings {legend_id}", color=colors[f"irr{color_id}"][0], linewidth=2, zorder=15, linestyle=linestyles[f])
-        print("baseline time from:", baseline["time"][0].values)
-        print("baseline time to:", baseline["time"][-1].values)
-
-        mean_values_irr = (baseline[var].sum(
-            dim="rgi_id") * factors[v]).values
-
-        member_data_noirr = []
-        nan_runs_noirr = []
-
-        for m, model in enumerate(models_shortlist):
-            for i in range(members_averages[m]):
-                # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
-                # IPSL-CM6 only has 1 member, so the sample_id must end with 000
-                if members_averages[m] > 1:
-                    i += 1
-                    label = None
-                else:
-                    label = "GCM member"
-
-                sample_id = f"{model}.00{i}"
-                filepath = [f'climate_run_output_perturbed_{sample_id}.nc',
-                            f'climate_run_output_perturbed_{sample_id}_comitted_random.nc',
-                            f'climate_run_output_perturbed_{sample_id}_comitted_random_counterfactual.nc'][f]
-                # f'climate_run_output_perturbed_{sample_id}_comitted_cst_test.nc'][f]
-                print(sample_id)
-                # load and plot the data from the climate output run and counterfactual
-                climate_run_opath_noirr = os.path.join(
-                    sum_dir, filepath)  # f'climate_run_output_perturbed_{sample_id}_comitted.nc')
-                climate_run_output_noirr = xr.open_dataset(
-                    climate_run_opath_noirr)
-                # if f == 0:
-                # rgi_ids_test=baseline.rgi_id[:10]
-                climate_run_output_noirr = climate_run_output_noirr.where(
-                    climate_run_output_noirr.rgi_id.isin(rgi_ids_test), drop=True)
-                ax.plot(climate_run_output_noirr["time"], (climate_run_output_noirr[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
-                        label=None, color=colors[f"{run_type}{color_id}"][1], linewidth=1, linestyle=linestyles[f])
-
-                # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
-                member_data_noirr.append((climate_run_output_noirr[var].sum(
-                    dim="rgi_id").values/resp_value*100 * factors[v]))
-                # print(len(climate_run_output_noirr[var][0].values))
-
-        # stack the member data
-        stacked_member_data = np.stack(member_data_noirr)
-        all_nan_rgi_ids = np.unique(nan_runs_noirr)
-        df_nan_rgi_ids = pd.DataFrame({'rgi_id': all_nan_rgi_ids})
-        output_csv_path = os.path.join(
-            wd_path, "masters", f"error_rgi_ids.csv")
-        df_nan_rgi_ids.to_csv(output_csv_path, index=False)
-
-        # calculate and plot volume/area 10-member mean
-        mean_values_noirr = np.median(stacked_member_data, axis=0).flatten()
-        # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
-        if f == 1:
-            ax.plot(climate_run_output_noirr["time"].values, mean_values_noirr,
-                    color=colors[f"{run_type}{color_id}"][0], linestyle=linestyles[f], lw=2, label=f"NoIrr ({sum(members_averages)}-member avg) {legend_id}")
-        if f == 2:
-            ax.plot(climate_run_output_noirr["time"].values, mean_values_noirr,
-                    color=colors[f"{run_type}{color_id}"][0], linestyle=linestyles[f], lw=2, label=f"NoForcings ({sum(members_averages)}-member avg) {legend_id}")
-
-        # calculate and plot volume/area 10-member min and max for ribbon
-        min_values_noirr = np.min(stacked_member_data, axis=0).flatten()
-        max_values_noirr = np.max(stacked_member_data, axis=0).flatten()
-        ax.fill_between(climate_run_output_noirr["time"].values, min_values_noirr, max_values_noirr,
-                        color=colors[f"noirr{color_id}"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range) {legend_id}", zorder=16)
-
-        if f == 0:
-            var_value_1985 = mean_values_irr[0]
-
-    # Set labels and title for the combined plot
-    ax.set_ylabel(variable_axes[v])
-    ax.set_xlabel("Time [year]")
-    ax.set_title(f"Summed {variable_names[v]}, RGI 13-15, A >5 km$^2$")
-
-    # Adjust the legend
-    handles, labels = ax.get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center',
-               bbox_to_anchor=(0.5, -0.15), ncol=3)
-    plt.tight_layout()
-
-    # specify and create a folder for saving the data (if it doesn't exists already) and save the plot
-    o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/0{v + 1}. {variable_names[v]}/00. Combined"
-    os.makedirs(o_folder_data, exist_ok=True)
-    o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted_random.png"
-    # o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted_cst_test.png"
-    # plt.savefig(o_file_name, bbox_inches='tight')
-
-# %% Plot comitted data by region
-
-# Define constants
-members_averages = [2, 3, 3, 5, 1]
-models_shortlist = ["E3SM", "CESM2", "NorESM", "CNRM", "IPSL-CM6"]
-variables = ["volume"]
-factors = [10**-9]
-variable_names = ["Volume"]
-variable_axes = ["Volume [km$^3$]"]
-regions = [13, 14, 15]
-subregions = [9, 3, 3]
-region_colors = {
-    13: 'blue',    # Blue for region 13
-    14: 'crimson',  # Crimson for region 14
-    15: 'orange'   # Orange for region 15
-}
-
-chunck_size = 1000
-
-nan_mask = pd.read_csv(os.path.join(
-    wd_path, "masters", "nan_mask_all_models_volume_comitted_random.csv")).rgi_ids
-# Remove duplicates if needed
-nan_mask = set(pd.DataFrame({'rgi_id': nan_mask.unique()}).rgi_id.to_numpy())
-
-
-# Function to load and filter dataset
-def load_filtered_dataset(filepath, rgi_ids, nan_mask):
-    ds = xr.open_dataset(filepath)
-    ds = ds.where(ds['rgi_id'].isin(rgi_ids), drop=True)
-    ds = ds.where(~ds['rgi_id'].isin(nan_mask), drop=True)
-
-    return ds[['volume', 'time', 'rgi_id']]
-
-# Main plotting function
-
-
-def plot_by_subregion(sum_dir, wd_path):
-    for v, var in enumerate(variables):
-        legend_id = "NoIrr"
-        print(f"Processing variable: {var}")
-        n_rows, n_cols = 5, 3
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(
-            12, 12), sharex=True, sharey=True, gridspec_kw={'hspace': 0.15, 'wspace': 0.35})
-        axes = axes.flatten()
-        plot_index = 0
-
-        for r, region in enumerate(regions):
-            for subregion_idx in range(subregions[r]):
-                ax = axes[plot_index]
-
-                # Define region and subregion IDs
-                subregion_idx += 1
-                region_id = f"{region}.0{subregion_idx}"
-                print(f"Processing subregion: {region_id}")
-                # subregion_ds = ds[ds['rgi_subregion'].str.contains(f"{region_id}")]
-                # subregion_ds = subregion_ds.rgi_id
-                # subregion_ds.to_csv(os.path.join(wd_path,'masters',f"rgi_ids_{region_id}.csv"))
-
-                ds_path = f"{wd_path}/masters/rgi_ids_{region_id}.csv"
-                subregion_ds = pd.read_csv(ds_path)
-
-                for f, filepaths in enumerate([f'climate_run_output_baseline_W5E5.000.nc', f'climate_run_output_baseline_W5E5.000_comitted_random.nc']):
-                    filepath = os.path.join(sum_dir, filepaths)
-                    # Load baseline data
-                    baseline_path = os.path.join(wd_path, "summary", filepath)
-                    baseline = load_filtered_dataset(
-                        baseline_path, subregion_ds, nan_mask)  # .rgi_id.values)
-                    if f == 0:
-                        resp_value = baseline[var].sum(dim="rgi_id")[0].values
-
-                    # Plot baseline data
-                    ax.plot(baseline["time"], (baseline[var].sum(dim="rgi_id")/resp_value*100),
-                            label="AllForcings", color=colors["irr"][f], linewidth=2, zorder=3)
-
-                    member_data_noirr_com = []
-                    member_data_noirr = []
-
-                    for m, model in enumerate(models_shortlist):
-                        for i in range(members_averages[m]):
-                            if members_averages[m] > 1:
-                                i += 1
-                            sample_id = f"{model}.00{i}"
-                            print(sample_id)
-
-                            # Loop through models and members
-                            filepaths = [
-                                f'climate_run_output_perturbed_{sample_id}.nc', f'climate_run_output_perturbed_{sample_id}_comitted_random.nc']
-                            filepath = os.path.join(sum_dir, filepaths[f])
-
-                            climate_run_output = load_filtered_dataset(
-                                filepath, subregion_ds, nan_mask)  # .rgi_id.values)
-
-                            # Plot model member data
-                            ax.plot(climate_run_output["time"], (climate_run_output[var].sum(dim="rgi_id") / resp_value*100),
-                                    label=None, color=colors["noirr"][f], linewidth=0.5, linestyle="solid", zorder=2)
-
-                            # Annotate region ID and glacier count
-
-                            if f == 0:
-                                member_data_noirr.append(
-                                    (climate_run_output[var].sum(dim="rgi_id") / resp_value*100))
-                            else:
-                                member_data_noirr_com.append(
-                                    (climate_run_output[var].sum(dim="rgi_id") / resp_value*100))
-
-                    if f == 0:
-                        stacked_member_data = np.stack(member_data_noirr)
-                    else:
-                        stacked_member_data = np.stack(member_data_noirr_com)
-
-                    mean_values_noirr = np.median(
-                        stacked_member_data, axis=0).flatten()
-                    ax.plot(climate_run_output["time"].values, mean_values_noirr,
-                            color=colors[f"noirr"][f], linestyle='solid', lw=2, label=f"NoIrr ({sum(members_averages)}-member avg) {legend_id}", zorder=3)
-
-                    # calculate and plot volume/area 10-member min and max for ribbon
-                    min_values_noirr = np.min(
-                        stacked_member_data, axis=0).flatten()
-                    max_values_noirr = np.max(
-                        stacked_member_data, axis=0).flatten()
-                    ax.fill_between(climate_run_output["time"].values, min_values_noirr, max_values_noirr,
-                                    color=colors[f"noirr"][f], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range) {legend_id}", zorder=0)
-
-                    ax.text(0.05, 0.8, f'{region_id}', transform=ax.transAxes,
-                            fontsize=12, fontweight='bold', zorder=20)
-                    num_glaciers = len(baseline.rgi_id.values)
-                    ax.text(0.05, 0.05, f'{num_glaciers} glaciers',
-                            transform=ax.transAxes, fontsize=10, zorder=20)
-                    if region_id == "15.02":
-                        plt.xlabel("Time [yrs]")
-                    if region_id == "13.07":
-                        plt.ylabel("Volume compared to 1985-All Forcings [%]")
-                plot_index += 1
-
-        # Adjust layout and save figure
-        plt.tight_layout()
-        plt.show()
-
-# Example usage
-
-
-plot_by_subregion(sum_dir, wd_path)
-
-
-# %% Plot individual model connection
-
-
-# define the variables for p;lotting
-variables = ["volume"]  # , "area"]
-factors = [10**-9, 10**-6]
-
-variable_names = ["Volume", "Area"]
-variable_axes = ["Volume [km$^3$]", "Area [km$^2$]"]
-use_multiprocessing = False
-
-subset_gdirs = gdirs_3r_a5  # [:100]
-
-rgi_ids_test = []
-for gdir in subset_gdirs:
-    rgi_ids_test.append(gdir.rgi_id)
-# nan_mask = ['RGI60-13.22268', 'RGI60-13.53308',
-#             'RGI60-13.36584', 'RGI60-13.54076', 'RGI60-14.14436']
-
-# nan_mask = ['RGI60-13.22268', 'RGI60-13.53308',
-#             'RGI60-13.36584', 'RGI60-13.54076', 'RGI60-14.14436']
-
-rgi_ids_test_2 = []  # [rgi_id for rgi_id in rgi_ids_test if rgi_id not in nan_mask]
-print(len(rgi_ids_test))
-# repeat the loop for area and volume
-for v, var in enumerate(variables):
-    print(var)
-    # create a new plot for both area and volume
-
-    values_baseline = []
-    values_baseline_2 = []
-    values_noirr = []
-    values_noirr_2 = []
-
-    linestyles = ['solid', 'solid']
-
-    nan_runs_noirr = []
-    members_averages = [1, 2, 3, 5, 3]  # 1
-    # "E3SM", "CESM2", "CNRM", "NorESM"]#"IPSL-CM6",
-    # "E3SM", "CESM2", "CNRM", "NorESM"]
-    models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
-    fig, ax = plt.subplots(figsize=(7, 4))  # create a new figure
-
-    for m, model in enumerate(models_shortlist):
-
-        for i in range(members_averages[m]):
-            if members_averages[m] > 1:
-                i += 1
-                label = None
-            else:
-                label = "GCM member"
-
-            sample_id = f"{model}.00{i}"
-            for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc"]):
-                member_data_noirr = []
-                if f == 1:
-                    color_id = "_com"
-                    legend_id = "committed"
-                    bar_values = 50
-                    end = 0
-                else:
-                    color_id = ""
-                    legend_id = ""
-                    bar_values = 20
-                    # ax2 = ax.twinx()
-                    end = -1
-
-                print(f)
-                # load and plot the baseline data
-                baseline_path = os.path.join(
-                    wd_path, "summary", filepath)
-                baseline = xr.open_dataset(baseline_path)
-                # if f == 0:
-                # rgi_ids_test = baseline.rgi_id.values[:10]
-                # baseline = baseline.where(
-                #     baseline.rgi_id.isin(rgi_ids_test), drop=True)
-                # baseline = baseline.where(
-                #     baseline.rgi_id.isin(rgi_ids_test_2), drop=True)
-
-                ax.plot(baseline["time"][end], baseline[var].sum(dim="rgi_id")[end] * factors[v],
-                        label=f"W5E5.000 {legend_id}", color=colors[f"irr{color_id}"][0], linewidth=2, zorder=15, linestyle=linestyles[f])
-                mean_values_irr = (baseline[var].sum(
-                    dim="rgi_id") * factors[v]).values
-                print("baseline:", baseline["time"][end].values, baseline[var].sum(
-                    dim="rgi_id")[end].values * factors[v])
-                # print(len(baseline[var][0].values))
-
-                # # loop through all the different model x member combinations
-                # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
-                # IPSL-CM6 only has 1 member, so the sample_id must end with 000
-
-                filepath = [f'climate_run_output_perturbed_{sample_id}.nc',
-                            f'climate_run_output_perturbed_{sample_id}_comitted_random.nc'][f]
-
-                # load and plot the data from the climate output run and counterfactual
-                climate_run_opath_noirr = os.path.join(
-                    sum_dir, filepath)  # f'climate_run_output_perturbed_{sample_id}_comitted.nc')
-                climate_run_output_noirr = xr.open_dataset(
-                    climate_run_opath_noirr)
-                # if f == 0:
-                # rgi_ids_test=baseline.rgi_id[:10]
-                # climate_run_output_noirr = climate_run_output_noirr.where(
-                #     climate_run_output_noirr.rgi_id.isin(rgi_ids_test_2), drop=True)
-
-                # nan_mask = 0
-                # nan_mask = climate_run_output_noirr['volume'].isnull()
-                # nan_runs = climate_run_output_noirr.where(nan_mask, drop=True)
-                # # print(nan_runs)
-                # nan_runs_noirr.extend(nan_runs['rgi_id'].values)
-                ax.plot(climate_run_output_noirr["time"][end], climate_run_output_noirr[var].sum(dim="rgi_id")[end] * factors[v],
-                        label=None, color=colors[f"noirr{color_id}"][1], linewidth=1, linestyle=linestyles[f])
-                print(f"noirr member {sample_id}:", climate_run_output_noirr["time"][end].values, climate_run_output_noirr[var].sum(
-                    dim="rgi_id")[end].values * factors[v])
-
-                # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
-                member_data_noirr.append(climate_run_output_noirr['volume'].sum(
-                    dim="rgi_id").values * factors[v])
-                # print(len(climate_run_output_noirr[var][0].values))
-
-                if f == 0:
-                    for rgi_id, baseline_volume in zip(baseline['rgi_id'].values, baseline['volume'].values[-1]):
-                        values_baseline.append(
-                            (sample_id, rgi_id, baseline_volume, "base"))
-                    for rgi_id, volume in zip(climate_run_output_noirr['rgi_id'].values, climate_run_output_noirr['volume'].values[0]):
-                        values_noirr.append(
-                            (sample_id, rgi_id, volume, "noirr"))
-                else:
-                    for rgi_id, baseline_volume in zip(baseline['rgi_id'].values, baseline['volume'].values[-1]):
-                        values_baseline_2.append(
-                            (sample_id, rgi_id, baseline_volume, "base"))
-                    for rgi_id, volume in zip(climate_run_output_noirr['rgi_id'].values, climate_run_output_noirr['volume'].values[0]):
-                        values_noirr_2.append(
-                            (sample_id, rgi_id, volume, "noirr"))
-
-            # stack the member data
-    stacked_member_data = np.stack(member_data_noirr)
-    all_nan_rgi_ids = np.unique(nan_runs_noirr)
-    df_nan_rgi_ids = pd.DataFrame({'rgi_id': all_nan_rgi_ids})
-    output_csv_path = os.path.join(
-        wd_path, "masters", f"error_rgi_ids.csv")
-    df_nan_rgi_ids.to_csv(output_csv_path, index=False)
-
-    # calculate and plot volume/area 10-member mean
-    mean_values_noirr = np.median(stacked_member_data, axis=0).flatten()
-    # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
-    ax.plot(climate_run_output_noirr["time"][end].values, mean_values_noirr[end],
-            color=colors[f"noirr{color_id}"][0], linestyle=linestyles[f], lw=2, label=f"NoIrr ({sum(members_averages)}-member avg) {legend_id}")
-    print("noirr mean:",
-          climate_run_output_noirr["time"][end].values, mean_values_noirr[end])
-    # calculate and plot volume/area 10-member min and max for ribbon
-    # min_values_noirr = np.min(stacked_member_data, axis=0).flatten()
-    # max_values_noirr = np.max(stacked_member_data, axis=0).flatten()
-
-    # if f == 0:
-    #     var_value_1985 = mean_values_irr[0]
-
-    # # calculate the volume loss by scenario: irr - noirrrr and counterfactual
-    # volume_loss_percentage_noirr = (
-    #     (mean_values_noirr - var_value_1985) / var_value_1985) * 100
-    # volume_loss_percentage_irr = (
-    #     (mean_values_irr - var_value_1985) / var_value_1985) * 100
-    # # #create a dataframe with the volume loss percentages and absolute values
-
-    # loss_df_subregion = pd.DataFrame({
-    #     'time': climate_run_output_noirr["time"].values,
-    #     # 'subregion': np.repeat(region_id, len(climate_run_output_noirr["time"])),
-    #     'volume_irr': mean_values_irr,
-    #     'volume_noirr': mean_values_noirr,
-    #     'volume_loss_percentage_irr': volume_loss_percentage_irr,
-    #     'volume_loss_percentage_noirr': volume_loss_percentage_noirr,
-    # })
-
-    # o_folder_name = f"{wd_path}masters/master_gdirs_r3_a5_volume_evolution{color_id}.csv"
-    # loss_df_subregion.to_csv(o_folder_name)
-
-    # # create a bar chart to show the volume loss by dataset
-    # ax2.bar(climate_run_output_noirr["time"].values[-1]+bar_values, volume_loss_percentage_noirr[-1],
-    #         color=colors[f'noirr{color_id}'][0], label="Volume Loss NoIrr(%)", alpha=1, zorder=0, width=15)
-
-    # ax2.bar(climate_run_output_noirr["time"].values[-1]+bar_values, volume_loss_percentage_irr[-1],
-    #         color=colors[f'irr{color_id}'][0],  label="Volume Loss Irr (%)", alpha=1, zorder=2, width=15)
-
-    # # if f==0:
-    # # ax.axvline(climate_run_output_noirr["time"].values[-1], color="black", lw=1, zorder=100, ls="--")
-
-    # ax2.axhline(0, color='black', linestyle='--',
-    #             linewidth=1, zorder=1)  # Dashed line at 0
-    # if var == "area":
-    #     # Adjust this range to make the secondary axis extend larger
-    #     ax2.set_ylim(-6, 5)
-    # if var == "volume":
-    #     print(var)
-    #     ax2.set_ylim(-6, 5)
-
-    # # Step 1: Set the value on ax1 where we want 0 on ax2 to align
-    # # e.g., the first value of data1
-    # # align_value = (baseline[var].sum(dim="rgi_id") * factors[v])[0].values
-    # align_value = var_value_1985
-
-    # # Step 2: Calculate the offset required for ax2 limits
-    # mpl_axes_aligner.align.yaxes(ax, align_value, ax2, 0)
-
-    # # Set labels and title for the combined plot
-    # ax.set_ylabel(variable_axes[v])
-    # ax2.set_ylabel(f"{variable_names[v]} [% of 1985-Irr]")
-    # ax.set_xlabel("Time [year]")
-    # ax.set_title(f"Summed {variable_names[v]}, {sample_id}")
-
-    # Adjust the legend
-    # handles, labels = ax.get_legend_handles_labels()
-    # fig.legend(handles, labels, loc='lower center',
-    #             bbox_to_anchor=(0.5, -0.15), ncol=3)
-    plt.tight_layout()
-plt.show()
-
-# specify and create a folder for saving the data (if it doesn't exists already) and save the plot
-# o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/0{v + 1}. {variable_names[v]}/0§. Committed/Test/"
-# os.makedirs(o_folder_data, exist_ok=True)
-# o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted.{sample_id}.png"
-# plt.savefig(o_file_name, bbox_inches='tight')
-
-
-# Create DataFrames
-df_noirr = pd.DataFrame(values_noirr, columns=[
-                        "sample_id", "rgi_id", "volume_1", "marker"])
-df_baseline = pd.DataFrame(values_baseline, columns=[
-                           "sample_id", "rgi_id", "volume_1", "marker"])
-df_noirr_2 = pd.DataFrame(values_noirr_2, columns=[
-                          "sample_id", "rgi_id", "volume_2", "marker"])
-df_baseline_2 = pd.DataFrame(values_baseline_2, columns=[
-                             "sample_id", "rgi_id", "volume_2", "marker"])
-
-# # Merge DataFrames
-df_noirr_combined = pd.merge(df_noirr, df_noirr_2, on=[
-                             "sample_id", "rgi_id", "marker"])
-df_base_combined = pd.merge(df_baseline, df_baseline_2, on=[
-                            "sample_id", "rgi_id", "marker"])
-# Save combined DataFrame to CSV
-output_csv_path = os.path.join(
-    wd_path, "log", "comparison_start_end_data_perturbed.csv")
-df_noirr_combined.to_csv(output_csv_path, index=False)
-output_csv_path = os.path.join(
-    wd_path, "log", "comparison_start_end_data_base.csv")
-df_base_combined.to_csv(output_csv_path, index=False)
-
-
-# %% Create nan mask for errorids - outdated
-
-members = [1, 3, 4, 6, 4, 1]
-models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM", "W5E5"]
-
-overview_df = pd.DataFrame()
-
-for m, model in enumerate(models):
-    for member in range(members[m]):
-        if model in ["IPSL-CM6", "W5E5"] or member != 0:
-            sample_id = f"{model}.00{member}"
-            ds = pd.read_csv(os.path.join(
-                # log_dir, f"stats_perturbed_{sample_id}_climate_run_test.csv"))
-                log_dir, f"stats_perturbed_{sample_id}_comitted_cst_test.csv"))
-            filtered_data = ds[ds['error_msg'].str.contains(
-                "Glacier exceeds domain boundaries", na=False)]
-            print(len(filtered_data))
-            if len(filtered_data) > 0:
-                # Add sample_id as a new column
-                filtered_data['sample_id'] = sample_id
-                # Append filtered data to the overview dataframe
-                overview_df = pd.concat(
-                    [overview_df, filtered_data], ignore_index=True)
-            overview_df = pd.concat(
-                [overview_df, filtered_data], ignore_index=True)
-            print(overview_df.rgi_id.values)
-
-overview_df = overview_df[['rgi_id', 'error_task', 'error_msg', 'sample_id']]
-overview_df.to_csv(os.path.join(wd_path, 'masters',
-                   'error_overview_comitted_cst.csv'))
-
-unique_rgi_ids = overview_df['rgi_id'].unique()
-unique_rgi_ids = pd.DataFrame(unique_rgi_ids, columns=['rgi_ids'])
-unique_rgi_ids.to_csv(os.path.join(
-    wd_path, 'masters', 'nan_mask_comitted_cst_test.csv'))
-
-
-# %% Create run with hydro output plot
-
-subset_gdirs = gdirs_3r_a5[:10]
-
-member_data = []
-f, ax = plt.subplots(figsize=(12, 5), sharex=True)
-members = [3, 4, 6, 4, 1]  # 1
-members_averages = [1, 2, 3, 5, 5]  # 1
-models = ["E3SM", "CESM2", "CNRM", "NorESM", "W5E5"]  # "IPSL-CM6",
-for m, model in enumerate(models):
-    for member in range(members[m]):
-        df_tot = pd.DataFrame()
-        if model in ["IPSL-CM6", "W5E5"] or member > 0:
-            sample_id = f"{model}.00{member}"
-            print(sample_id)
-            if model == "W5E5":
-                cid = 0
-                model_type = 'irr'
-                file_id = '_hydro_baseline_AllForcings'
-                label = "Irr"
-            else:
-                cid = 1
-                if model == "E3SM" and member == 1:
-                    label = "NoIrr (individual members)"
-                else:
-                    label = ""
-                model_type = 'noirr'
-                file_id = f'_hydro_perturbed_{sample_id}'
-
-            for i, gdir in enumerate(subset_gdirs):
-                with xr.open_dataset(gdir.get_filepath('model_diagnostics', filesuffix=file_id)) as ds:
-                    # Load the data into a dataframe
-                    ds = ds.isel(time=slice(0, -1)).load()
-
-                # Select annual variables
-                sel_vars = [
-                    v for v in ds.variables if 'month_2d' not in ds[v].dims]
-                # And create a dataframe
-                df_annual = ds[sel_vars].to_dataframe()
-                df_tot = pd.concat([df_tot, df_annual], ignore_index=True)
-
-            # print(df_tot)
-            # Select the variables relevant for runoff.
-            runoff_vars = ['melt_off_glacier', 'melt_on_glacier',
-                           'liq_prcp_off_glacier', 'liq_prcp_on_glacier']
-
-            for i in range(len(runoff_vars)):
-
-                df_monthly_totals = df_tot.groupby(['calendar_year'])[
-                    runoff_vars].sum()  # sum over all rgi_ids
-
-           # Convert to mega tonnes instead of kg.
-            df_runoff = df_monthly_totals[runoff_vars].clip(0) * 1e-9
-            # Sum the variables each year "axis=1", take the 11 year rolling mean and plot it.
-            # .rolling(window=11, center=True).mean()
-            df_roll = df_runoff.sum(axis=1)
-
-            df_roll.plot(ax=ax, label=label, color=colors[model_type][cid])
-
-            if model != "W5E5":
-                member_data.append(df_roll)
-stacked_member_data = np.stack(member_data)
-mean_values = np.median(stacked_member_data, axis=0).flatten()
-# mean_values = np.mean(stacked_member_data, axis=0).flatten()
-plt.plot(df_roll.index.values, mean_values,
-         label=f"NoIrr ({sum(members_averages)}-member average", color=colors["noirr"][0])
-min_values = np.min(stacked_member_data, axis=0).flatten()
-max_values = np.max(stacked_member_data, axis=0).flatten()
-ax.fill_between(df_roll.index.values, min_values, max_values,
-                color=colors["noirr"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range)", zorder=16)
-
-plt.ylabel('Annual runoff (Mt)')
-plt.xlabel('Year')
-plt.legend()
-#     wd_path, "masters", f"{rgi_sel}_differences.csv")
-# output_df.to_csv(output_csv_path, index=False)
-# Calculate difference
-# dif = climate_run_output_noirr_clim - climate_run_output_noirr_com
-
-# # Extract data where difference is NaN
-# nan_mask = np.isnan(dif)
-# rgi_ids_nan = climate_run_output_noirr_clim.rgi_id.where(nan_mask, drop=True)
-# climate_clim_nan = climate_run_output_noirr_clim.where(nan_mask, drop=True)
-# climate_com_nan = climate_run_output_noirr_com.where(nan_mask, drop=True)
-
-# Store the data in the list
-#         for rgi_id, clim_val, com_val in zip(rgi_ids_nan.values, climate_clim_nan.values, climate_com_nan.values):
-#             data_rows.append({
-#                 "sample_id": sample_id,
-#                 "rgi_id": rgi_id,
-#                 "dif_value": np.nan,
-#                 "noirr_clim_value": clim_val,
-#                 "noirr_com_value": com_val
-#             })
-
-# # Create a DataFrame from the collected rows
-# output_df = pd.DataFrame(data_rows)
-
-# # Save or display the resulting DataFrame
-# output_csv_path = os.path.join(wd_path, "masters", "climate_nan_differences.csv")
-# output_df.to_csv(output_csv_path, index=False)
-
-# Display the DataFrame to the user
-# import ace_tools as tools; tools.display_dataframe_to_user(name="Climate NaN Differences Dataset", dataframe=output_df)
+print(area_first_com.time)

@@ -1885,7 +1885,7 @@ for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
                 # Step 6: Overlay the mask with dots in areas where agreement criteria are met
                 axes[indices[0]].contourf(
                     all_diffs_avg.lon, all_diffs_avg.lat, within_threshold_2d,
-                    levels=[0.5, 1.5], colors='none', hatches=['...'], transform=ccrs.PlateCarree()
+                    levels=[0.5, 1.5], colors='none', hatches=['////'], transform=ccrs.PlateCarree()
                 )
 
                 if subplots == "on":

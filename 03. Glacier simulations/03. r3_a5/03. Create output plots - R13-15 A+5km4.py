@@ -2368,25 +2368,27 @@ for v, var in enumerate(variables):
     # create a timeseries for all the model members to add the data, needed to calculate averages later
 
     linestyles = ['solid', 'solid', 'solid']
-    for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc"]):
+    for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc"]):
         # for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_cst_test.nc"]):
-        if f == 1:
+        if f != 0:
             run_type = "noirr"
             color_id = "_com"
             legend_id = "committed"
             bar_values = 50
-        if f == 2:
-            run_type = "cf"
-            color_id = "_com"
-            legend_id = "committed"
-            bar_values = 50
+            run_label = "NoIrr"
+
+        # if f == 2:
+        #     run_type = "cf"
+        #     color_id = "_com"
+        #     legend_id = "committed"
+        #     bar_values = 50
+        #     run_label= "NoForcings"
         else:
             run_type = "irr"
             color_id = ""
             legend_id = ""
             bar_values = 20
 
-        print(f)
         # load and plot the baseline data
         baseline_path = os.path.join(
             wd_path, "summary", filepath)
@@ -2400,74 +2402,91 @@ for v, var in enumerate(variables):
         # print(len(baseline.rgi_id))
         if f == 0:
             resp_value = baseline[var].sum(dim="rgi_id")[0].values * factors[v]
-        if f:
-            ax.plot(baseline["time"], (baseline[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
-                    label=f"AllForcings {legend_id}", color=colors[f"irr{color_id}"][0], linewidth=2, zorder=15, linestyle=linestyles[f])
+        ax.plot(baseline["time"], (baseline[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
+                label=f"AllForcings {legend_id}", color=colors[f"irr{color_id}"][0], linewidth=2, zorder=15, linestyle=linestyles[f])
         print("baseline time from:", baseline["time"][0].values)
         print("baseline time to:", baseline["time"][-1].values)
 
         mean_values_irr = (baseline[var].sum(
             dim="rgi_id") * factors[v]).values
 
-        member_data_noirr = []
-        nan_runs_noirr = []
+        for r in range(2):
+            member_data_noirr = []
+            nan_runs_noirr = []
+            if r == 1:
+                run_type = "noirr"
+                color_id = "_com"
+                legend_id = "committed"
+                bar_values = 50
+                run_label = "NoIrr"
+            else:
+                run_type = "cf"
+                color_id = "_com"
+                legend_id = "committed"
+                bar_values = 50
+                run_label = "NoForcings"
 
-        for m, model in enumerate(models_shortlist):
-            for i in range(members_averages[m]):
-                # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
-                # IPSL-CM6 only has 1 member, so the sample_id must end with 000
-                if members_averages[m] > 1:
-                    i += 1
-                    label = None
-                else:
-                    label = "GCM member"
+            for m, model in enumerate(models_shortlist):
+                for i in range(members_averages[m]):
+                    sample_id = f"{model}.00{i}"
 
-                sample_id = f"{model}.00{i}"
-                filepath = [f'climate_run_output_perturbed_{sample_id}.nc',
-                            f'climate_run_output_perturbed_{sample_id}_comitted_random.nc',
-                            f'climate_run_output_perturbed_{sample_id}_comitted_random_counterfactual.nc'][f]
-                # f'climate_run_output_perturbed_{sample_id}_comitted_cst_test.nc'][f]
-                print(sample_id)
-                # load and plot the data from the climate output run and counterfactual
-                climate_run_opath_noirr = os.path.join(
-                    sum_dir, filepath)  # f'climate_run_output_perturbed_{sample_id}_comitted.nc')
-                climate_run_output_noirr = xr.open_dataset(
-                    climate_run_opath_noirr)
-                # if f == 0:
-                # rgi_ids_test=baseline.rgi_id[:10]
-                climate_run_output_noirr = climate_run_output_noirr.where(
-                    climate_run_output_noirr.rgi_id.isin(rgi_ids_test), drop=True)
-                ax.plot(climate_run_output_noirr["time"], (climate_run_output_noirr[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
-                        label=None, color=colors[f"{run_type}{color_id}"][1], linewidth=1, linestyle=linestyles[f])
+                    # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
+                    # IPSL-CM6 only has 1 member, so the sample_id must end with 000
+                    if members_averages[m] > 1:
+                        i += 1
+                        label = None
+                    else:
+                        label = "GCM member"
+                    if r == 0:
+                        filepath = [f'climate_run_output_perturbed_{sample_id}_counterfactual.nc',
+                                    f'climate_run_output_perturbed_{sample_id}_comitted_random_counterfactual.nc',
+                                    ][f]
+                    else:
+                        filepath = [f'climate_run_output_perturbed_{sample_id}.nc',
+                                    f'climate_run_output_perturbed_{sample_id}_comitted_random.nc',
+                                    ][f]
 
-                # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
-                member_data_noirr.append((climate_run_output_noirr[var].sum(
-                    dim="rgi_id").values/resp_value*100 * factors[v]))
-                # print(len(climate_run_output_noirr[var][0].values))
+                    # f'climate_run_output_perturbed_{sample_id}_comitted_cst_test.nc'][f]
+                    print(sample_id)
+                    # load and plot the data from the climate output run and counterfactual
+                    climate_run_opath_noirr = os.path.join(
+                        sum_dir, filepath)  # f'climate_run_output_perturbed_{sample_id}_comitted.nc')
+                    climate_run_output_noirr = xr.open_dataset(
+                        climate_run_opath_noirr)
+                    # if f == 0:
+                    # rgi_ids_test=baseline.rgi_id[:10]
+                    climate_run_output_noirr = climate_run_output_noirr.where(
+                        climate_run_output_noirr.rgi_id.isin(rgi_ids_test), drop=True)
+                    ax.plot(climate_run_output_noirr["time"], (climate_run_output_noirr[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
+                            label=None, color=colors[f"{run_type}{color_id}"][f], linewidth=1, linestyle="dotted", zorder=10)
 
-        # stack the member data
-        stacked_member_data = np.stack(member_data_noirr)
-        all_nan_rgi_ids = np.unique(nan_runs_noirr)
-        df_nan_rgi_ids = pd.DataFrame({'rgi_id': all_nan_rgi_ids})
-        output_csv_path = os.path.join(
-            wd_path, "masters", f"error_rgi_ids.csv")
-        df_nan_rgi_ids.to_csv(output_csv_path, index=False)
+                    # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
+                    member_data_noirr.append((climate_run_output_noirr[var].sum(
+                        dim="rgi_id").values/resp_value*100 * factors[v]))
+                    print(len(member_data_noirr))
+                    # print(len(climate_run_output_noirr[var][0].values))
 
-        # calculate and plot volume/area 10-member mean
-        mean_values_noirr = np.median(stacked_member_data, axis=0).flatten()
-        # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
-        if f == 1:
+            # stack the member data
+            stacked_member_data = np.stack(member_data_noirr)
+            all_nan_rgi_ids = np.unique(nan_runs_noirr)
+            df_nan_rgi_ids = pd.DataFrame({'rgi_id': all_nan_rgi_ids})
+            output_csv_path = os.path.join(
+                wd_path, "masters", f"error_rgi_ids.csv")
+            df_nan_rgi_ids.to_csv(output_csv_path, index=False)
+
+            # calculate and plot volume/area 10-member mean
+            mean_values_noirr = np.median(
+                stacked_member_data, axis=0).flatten()
+            # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
+
             ax.plot(climate_run_output_noirr["time"].values, mean_values_noirr,
-                    color=colors[f"{run_type}{color_id}"][0], linestyle=linestyles[f], lw=2, label=f"NoIrr ({sum(members_averages)}-member avg) {legend_id}")
-        if f == 2:
-            ax.plot(climate_run_output_noirr["time"].values, mean_values_noirr,
-                    color=colors[f"{run_type}{color_id}"][0], linestyle=linestyles[f], lw=2, label=f"NoForcings ({sum(members_averages)}-member avg) {legend_id}")
+                    color=colors[f"{run_type}{color_id}"][f], linestyle=linestyles[f], lw=2, label=f"{run_label} ({sum(members_averages)}-member avg) {legend_id}", zorder=5)
 
-        # calculate and plot volume/area 10-member min and max for ribbon
-        min_values_noirr = np.min(stacked_member_data, axis=0).flatten()
-        max_values_noirr = np.max(stacked_member_data, axis=0).flatten()
-        ax.fill_between(climate_run_output_noirr["time"].values, min_values_noirr, max_values_noirr,
-                        color=colors[f"noirr{color_id}"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range) {legend_id}", zorder=16)
+            # calculate and plot volume/area 10-member min and max for ribbon
+            min_values_noirr = np.min(stacked_member_data, axis=0).flatten()
+            max_values_noirr = np.max(stacked_member_data, axis=0).flatten()
+            ax.fill_between(climate_run_output_noirr["time"].values, min_values_noirr, max_values_noirr,
+                            color=colors[f"{run_type}{color_id}"][f], alpha=0.3, label=f"{run_label} ({sum(members_averages)}-member range) {legend_id}", zorder=16)
 
         if f == 0:
             var_value_1985 = mean_values_irr[0]

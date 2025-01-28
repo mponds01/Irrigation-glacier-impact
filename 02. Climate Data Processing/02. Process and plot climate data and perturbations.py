@@ -1655,270 +1655,291 @@ def plot_subplots(index, subplots, annotation, diff, timestamps, axes, shp, cust
 """ Part 0 - Set plotting parameters"""
 
 
-y0 = 1985  # if running from 1901 to 1985, than indicate extra id of counterfactual to access the data
-ye = 2014
-extra_id = ""  # "_counterfactual"
+# y0 = 1985  # if running from 1901 to 1985, than indicate extra id of counterfactual to access the data
+# ye = 2014
+# if running from 1901 to 1985, than indicate extra id of counterfactual to access the data
+y0s = [1985, 1901]
+yes = [2014, 1985]
+extra_ids = ["", "_counterfactual"]
+ptb_types = ["Irr", "NoForcing"]
 scale = "Local"
 subplots = "on"
-for var in ["Temperature"]:  # "Temperature"]:  # ,"Temperature"]:
+# "Temperature"]:  # ,"Temperature"]:
+for var in ["Temperature", "Precipitation"]:
     for timeframe in ["annual"]:  # :, "seasonal", "monthly"]:
         for mode in ['dif']:  # , 'std']:
-            if var == "Precipitation" and mode == 'dif':
-                diftypes = ['abs', 'rel']
-            else:
-                diftypes = ['abs']
-            for dif in diftypes:
-                print(var, timeframe, dif)
-                diftype = dif
-                # plot_P_T_perturbations_avg(scale,var, timeframe, mode, dif, "off")
-                # adjust figure sizes towards type of plot# adjust figure sizes towards type of plot
-                if scale == "Global":
-                    if timeframe == 'monthly':
-                        figsize = (25, 12)
-                        fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
-                                                 'projection': ccrs.PlateCarree()}, figsize=figsize)
-                        time_signature = 'ymon'
-                        timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
-                                      'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-                        time_averaging = 'time.month'
-                        time_type = 'month'
-                        col_wrap = 4
-                    if timeframe == 'seasonal':
-                        figsize = (12, 7.5)
-                        fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
-                                                 'projection': ccrs.PlateCarree()}, figsize=figsize)
-                        time_signature = 'yseas'
-                        timestamps = ['DJF', 'MAM', 'JJA', 'SON']
-                        time_averaging = 'time.season'
-                        time_type = 'season'
-                        col_wrap = 2
-                    if timeframe == 'annual':
-                        figsize = (7, 5)  # (50, 25)#(7, 5)
-                        fig, axes = plt.subplots(nrows=1, ncols=1, subplot_kw={
-                                                 'projection': ccrs.PlateCarree()}, figsize=figsize)
-                        time_signature = 'year'
-                        timestamps = ['YEAR']
-                        time_averaging = 'time.year'
-                        time_type = 'year'
-                        col_wrap = 1
+            for y, y0 in enumerate(y0s):
+                ye = yes[y]
+                extra_id = extra_ids[y]
+                ptbtype = ptb_types[y]
+                if var == "Precipitation" and mode == 'dif':
+                    diftypes = ['abs', 'rel']
+                else:
+                    diftypes = ['abs']
+                for dif in diftypes:
+                    print(var, timeframe, dif)
+                    diftype = dif
+                    # plot_P_T_perturbations_avg(scale,var, timeframe, mode, dif, "off")
+                    # adjust figure sizes towards type of plot# adjust figure sizes towards type of plot
+                    if scale == "Global":
+                        if timeframe == 'monthly':
+                            figsize = (25, 12)
+                            fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
+                                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'ymon'
+                            timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
+                                          'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+                            time_averaging = 'time.month'
+                            time_type = 'month'
+                            col_wrap = 4
+                        if timeframe == 'seasonal':
+                            figsize = (12, 7.5)
+                            fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
+                                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'yseas'
+                            timestamps = ['DJF', 'MAM', 'JJA', 'SON']
+                            time_averaging = 'time.season'
+                            time_type = 'season'
+                            col_wrap = 2
+                        if timeframe == 'annual':
+                            figsize = (7, 5)  # (50, 25)#(7, 5)
+                            fig, axes = plt.subplots(nrows=1, ncols=1, subplot_kw={
+                                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'year'
+                            timestamps = ['YEAR']
+                            time_averaging = 'time.year'
+                            time_type = 'year'
+                            col_wrap = 1
 
-                if scale == "Local":
-                    if timeframe == 'monthly':
-                        figsize = (18, 10)
-                        # fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
-                        #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
-                        time_signature = 'ymon'
-                        timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
-                                      'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-                        time_averaging = 'time.month'
-                        time_type = 'month'
-                        col_wrap = 4
-                    if timeframe == 'seasonal':
-                        figsize = (9, 7)
-                        # fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
-                        #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
-                        time_signature = 'yseas'
-                        timestamps = ['DJF', 'MAM', 'JJA', 'SON']
-                        time_averaging = 'time.season'
-                        time_type = 'season'
-                        col_wrap = 2
-                    if timeframe == 'annual':
-                        figsize = (7, 5)
-                        # fig, axes = plt.subplots(nrows=1, ncols=5, subplot_kw={
-                        #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
-                        time_signature = 'year'
-                        timestamps = ['YEAR']
-                        time_averaging = 'time.year'
-                        time_type = 'year'
-                        col_wrap = 1
+                    if scale == "Local":
+                        if timeframe == 'monthly':
+                            figsize = (18, 10)
+                            # fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
+                            #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'ymon'
+                            timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
+                                          'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+                            time_averaging = 'time.month'
+                            time_type = 'month'
+                            col_wrap = 4
+                        if timeframe == 'seasonal':
+                            figsize = (9, 7)
+                            # fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
+                            #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'yseas'
+                            timestamps = ['DJF', 'MAM', 'JJA', 'SON']
+                            time_averaging = 'time.season'
+                            time_type = 'season'
+                            col_wrap = 2
+                        if timeframe == 'annual':
+                            figsize = (7, 5)
+                            # fig, axes = plt.subplots(nrows=1, ncols=5, subplot_kw={
+                            #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'year'
+                            timestamps = ['YEAR']
+                            time_averaging = 'time.year'
+                            time_type = 'year'
+                            col_wrap = 1
 
-                # Provide cbar ranges and colors for plots for different variables, modes (dif/std) and difference types (abs/rel)
-                if var == "Precipitation":
-                    variable_name = "pr"
-                    var_suffix = "PR"
-                    if mode == 'dif' and diftype == 'rel':
-                        mode_suff = 'total'
-                        vmin = -20
-                        vmax = 20
-                        zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
-                        colors = [(0, 'xkcd:mocha'), (zero_scaled,
-                                                      'xkcd:white'), (1, 'xkcd:aquamarine')]
-                        custom_cmap = LinearSegmentedColormap.from_list(
-                            'custom_cmap', colors)
-                    if mode == 'dif' and diftype == 'abs':
-                        mode_suff = 'total'
-                        vmin = -50
-                        vmax = 75
-                        zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
-                        colors = [(0, 'xkcd:mocha'), (zero_scaled,
-                                                      'xkcd:white'), (1, 'xkcd:aquamarine')]
-                        custom_cmap = LinearSegmentedColormap.from_list(
-                            'custom_cmap', colors)
-                    if mode == 'std':
-                        mode_suff = 'std'
-                        vmin = -40
-                        vmax = 40
-                        zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
-                        colors = [(0, 'xkcd:peach'), (zero_scaled, 'xkcd:white'),
-                                  (1, 'xkcd:light aquamarine')]
-                        custom_cmap = LinearSegmentedColormap.from_list(
-                            'custom_cmap', colors)
+                    # Provide cbar ranges and colors for plots for different variables, modes (dif/std) and difference types (abs/rel)
+                    if var == "Precipitation":
+                        variable_name = "pr"
+                        var_suffix = "PR"
+                        if mode == 'dif' and diftype == 'rel':
+                            mode_suff = 'total'
+                            vmin = -20
+                            vmax = 20
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:mocha'), (zero_scaled,
+                                                          'xkcd:white'), (1, 'xkcd:aquamarine')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+                        if mode == 'dif' and diftype == 'abs':
+                            mode_suff = 'total'
+                            vmin = -50
+                            vmax = 75
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:mocha'), (zero_scaled,
+                                                          'xkcd:white'), (1, 'xkcd:aquamarine')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+                        if mode == 'std':
+                            mode_suff = 'std'
+                            vmin = -40
+                            vmax = 40
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:peach'), (zero_scaled, 'xkcd:white'),
+                                      (1, 'xkcd:light aquamarine')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
 
-                elif var == "Temperature":
-                    variable_name = "tas"
-                    var_suffix = "TEMP"
-                    if mode == 'dif':
-                        mode_suff = 'total'
-                        vmin = -1.5
-                        vmax = 1.5
-                        zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
-                        colors = [(0, 'cornflowerblue'), (zero_scaled,
-                                                          'xkcd:white'), (1, 'xkcd:tomato')]
-                        custom_cmap = LinearSegmentedColormap.from_list(
-                            'custom_cmap', colors)
-                    if mode == 'std':
-                        mode_suff = 'std'
-                        vmin = -1.5
-                        vmax = 1.5
-                        zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
-                        colors = [(0, 'xkcd:lightblue'), (zero_scaled,
-                                                          'xkcd:white'), (1, 'xkcd:pink')]
-                        custom_cmap = LinearSegmentedColormap.from_list(
-                            'custom_cmap', colors)
+                    elif var == "Temperature":
+                        variable_name = "tas"
+                        var_suffix = "TEMP"
+                        if mode == 'dif':
+                            mode_suff = 'total'
+                            vmin = -1.5
+                            vmax = 1.5
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'cornflowerblue'), (zero_scaled,
+                                                              'xkcd:white'), (1, 'xkcd:tomato')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+                        if mode == 'std':
+                            mode_suff = 'std'
+                            vmin = -1.5
+                            vmax = 1.5
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:lightblue'), (zero_scaled,
+                                                              'xkcd:white'), (1, 'xkcd:pink')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
 
-                # Set label and tick parameters for the colorbar
-                if var == "Precipitation":
-                    if mode == 'std' or diftype == 'abs':
-                        unit = 'mm'
+                    # Set label and tick parameters for the colorbar
+                    if var == "Precipitation":
+                        if mode == 'std' or diftype == 'abs':
+                            unit = 'mm'
+                        else:
+                            unit = '%'
+                    elif var == "Temperature":
+                        unit = '°C'
                     else:
-                        unit = '%'
-                elif var == "Temperature":
-                    unit = '°C'
-                else:
-                    unit = 'Unknown'
+                        unit = 'Unknown'
 
-                members = [1, 3, 4, 6, 4]
-                # members = [1, 1, 1, 1]
-                all_diff = []  # create a dataset to add all member differences
-                all_model_diffs = []
-                models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
+                    members = [1, 3, 4, 6, 4]
+                    # members = [1, 1, 1, 1]
+                    all_diff = []  # create a dataset to add all member differences
+                    all_model_diffs = []
+                    models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
 
-                for (m, model) in enumerate(models):
-                    model_diff = []
-                    for member in range(members[m]):
-                        # only open data for non model averages (except for IPSL-CM6 as only one member)
-                        if model == "IPSL-CM6" or member != 0:
-
-                            # Part 1: Delete
-                            diff_folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/03. Regridded Perturbations/{var}/{timeframe}/{model}/{member}"
-                            ifile_diff = f"{diff_folder_in}/REGRID.{model}.{var_suffix}.DIF.00{member}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.nc"
-                            diff = xr.open_dataset(ifile_diff)
-
-                            if scale == "Local":  # scale the data to the local scale
-                                diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (
-                                    diff.lat >= 22) & (diff.lat <= 52), drop=True)
-                            # loose all the filtered data (nan)
-                            diff_clean = diff.dropna(dim="lon", how="all")
-                            # include the values in the list for caluclating the avg difference by model
-                            model_diff.append(diff_clean)
-                            # include the values in the list for caluclating the avg difference over all models
-                            all_diff.append(diff_clean)
-                    all_model_diff = xr.concat(
-                        model_diff, dim="models").mean(dim="models")  # concatenate all models into a list averaged by model
-                    all_model_diffs.append(all_model_diff)
-                all_model_diffs_avg = xr.concat(
-                    all_model_diffs, dim="models")  # concatenate all models
-                all_diffs_avg = xr.concat(all_diff, dim="models").mean(
-                    dim="models")  # concatenate all members and calculate the mean over all the models
-
-                """ Part 2 - Shapefile outline for Karakoram Area to be included"""
-                # path to  shapefile
-                shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
-                shp = gpd.read_file(shapefile_path)
-                target_crs = 'EPSG:4326'
-                shp = shp.to_crs(target_crs)
-
-                indices = ["A", "B", "C", "D", "E", "F"]
-
-                # Create the mosaic plot
-                if subplots == "on":
-                    layout = """
-                    AAB
-                    AAC
-                    DEF
-                    """
-                    fig, axes = plt.subplot_mosaic(layout, subplot_kw={'projection': ccrs.PlateCarree()},
-                                                   figsize=figsize,
-                                                   gridspec_kw={'wspace': 0, 'hspace': 0.4})
-                else:
-                    layout = """
-                    AA
-                    AA
-                    """
-                    fig, axes = plt.subplot_mosaic(layout, subplot_kw={'projection': ccrs.PlateCarree()},
-                                                   figsize=figsize,
-                                                   gridspec_kw={'wspace': 0, 'hspace': 0.4})
-                # plot the irrmip difference
-                im = plot_subplots(indices[0], subplots, (sum(members)-len(models)+1),
-                                   all_diffs_avg, timestamps, axes[indices[0]], shp, custom_cmap, timeframe, scale, f"IRRMIP", vmin=vmin, vmax=vmax)
-
-                # Step 1: Calculate the mean across models for each grid point
-                # mean_diff = xr.concat([diff[variable_name] for diff in all_model_diffs], dim="models").mean(dim="models")
-
-                # Step 2: Calculate the absolute difference between each model and the mean
-                # agreement_mask = xr.concat(
-                #     [np.abs(diff['tas'] - mean_diff) for diff in all_model_diffs],
-                #     dim="models"
-                # )
-
-                sign_diff = xr.concat([np.sign(diff[variable_name])
-                                      for diff in all_model_diffs], dim="models")
-                agreement_on_sign = (abs(sign_diff.mean(dim="models")) >= 0.8)
-
-                # Step 3: Combine the conditions to create the final mask
-                # We need areas where all models are within 0.5 degrees and 80% agree on the sign
-                # & agreement_mask.all(dim="models")
-                within_threshold = agreement_on_sign
-                # Step 4: Convert the mask to 2D by removing the singleton 'variable' dimension if needed
-                within_threshold_2d = within_threshold.astype(int).squeeze()
-
-                # Step 6: Overlay the mask with dots in areas where agreement criteria are met
-                axes[indices[0]].contourf(
-                    all_diffs_avg.lon, all_diffs_avg.lat, within_threshold_2d,
-                    levels=[0.5, 1.5], colors='none', hatches=['////'], transform=ccrs.PlateCarree()
-                )
-
-                if subplots == "on":
                     for (m, model) in enumerate(models):
-                        print(m+1)
-                        annotation = members[m] - \
-                            1 if model != "IPSL-CM6" else members[m]
-                        im_model = plot_subplots(indices[m+1], subplots, annotation,
-                                                 all_model_diffs_avg.sel(models=m), timestamps, axes[indices[m+1]], shp, custom_cmap, timeframe, scale, model, vmin=vmin, vmax=vmax)
+                        model_diff = []
+                        for member in range(members[m]):
+                            # only open data for non model averages (except for IPSL-CM6 as only one member)
+                            if model == "IPSL-CM6" or member != 0:
 
-                """ 3C Add color bar for entire plot"""
-                # add cbar in the figure, for overall figure, not subplots
-                # Define the position of the colorbar
-                cbar_ax = fig.add_axes([0.92, 0.1, 0.02, 0.8])
-                cbar = fig.colorbar(im, cax=cbar_ax, extend='both')
+                                # Part 1: Delete
+                                diff_folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/03. Regridded Perturbations/{var}/{timeframe}/{model}/{member}"
+                                ifile_diff = f"{diff_folder_in}/REGRID.{model}.{var_suffix}.DIF.00{member}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.nc"
+                                diff = xr.open_dataset(ifile_diff)
 
-                # Increase distance between colorbar label and colorbar
-                cbar.ax.yaxis.labelpad = 20
-                if mode == 'dif':
-                    cbar.set_label(f'$\Delta$ {var} [{unit}]', size='15')
-                    if mode == 'std':
+                                if scale == "Local":  # scale the data to the local scale
+                                    diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (
+                                        diff.lat >= 22) & (diff.lat <= 52), drop=True)
+                                # loose all the filtered data (nan)
+                                diff_clean = diff.dropna(dim="lon", how="all")
+                                # include the values in the list for caluclating the avg difference by model
+                                model_diff.append(diff_clean)
+                                # include the values in the list for caluclating the avg difference over all models
+                                all_diff.append(diff_clean)
+                        all_model_diff = xr.concat(
+                            model_diff, dim="models").mean(dim="models")  # concatenate all models into a list averaged by model
+                        all_model_diffs.append(all_model_diff)
+                    all_model_diffs_avg = xr.concat(
+                        all_model_diffs, dim="models")  # concatenate all models
+                    all_diffs_avg = xr.concat(all_diff, dim="models").mean(
+                        dim="models")  # concatenate all members and calculate the mean over all the models
+
+                    """ Part 2 - Shapefile outline for Karakoram Area to be included"""
+                    # path to  shapefile
+                    shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
+                    shp = gpd.read_file(shapefile_path)
+                    target_crs = 'EPSG:4326'
+                    shp = shp.to_crs(target_crs)
+
+                    indices = ["A", "B", "C", "D", "E", "F"]
+
+                    # Create the mosaic plot
+                    if subplots == "on":
+                        layout = """
+                        AAB
+                        AAC
+                        DEF
+                        """
+                        fig, axes = plt.subplot_mosaic(layout, subplot_kw={'projection': ccrs.PlateCarree()},
+                                                       figsize=figsize,
+                                                       gridspec_kw={'wspace': 0, 'hspace': 0.4})
+                    else:
+                        layout = """
+                        AA
+                        AA
+                        """
+                        fig, axes = plt.subplot_mosaic(layout, subplot_kw={'projection': ccrs.PlateCarree()},
+                                                       figsize=figsize,
+                                                       gridspec_kw={'wspace': 0, 'hspace': 0.4})
+                    # plot the irrmip difference
+                    im = plot_subplots(indices[0], subplots, (sum(members)-len(models)+1),
+                                       all_diffs_avg, timestamps, axes[indices[0]], shp, custom_cmap, timeframe, scale, f"IRRMIP", vmin=vmin, vmax=vmax)
+
+                    # Step 1: Calculate the mean across models for each grid point
+                    # mean_diff = xr.concat([diff[variable_name] for diff in all_model_diffs], dim="models").mean(dim="models")
+
+                    # Step 2: Calculate the absolute difference between each model and the mean
+                    # agreement_mask = xr.concat(
+                    #     [np.abs(diff['tas'] - mean_diff) for diff in all_model_diffs],
+                    #     dim="models"
+                    # )
+
+                    sign_diff = xr.concat([np.sign(diff[variable_name])
+                                          for diff in all_model_diffs], dim="models")
+                    agreement_on_sign = (
+                        abs(sign_diff.mean(dim="models")) >= 0.8)
+
+                    # Step 3: Combine the conditions to create the final mask
+                    # We need areas where all models are within 0.5 degrees and 80% agree on the sign
+                    # & agreement_mask.all(dim="models")
+                    within_threshold = agreement_on_sign
+                    # Step 4: Convert the mask to 2D by removing the singleton 'variable' dimension if needed
+                    within_threshold_2d = within_threshold.astype(
+                        int).squeeze()
+
+                    # Step 6: Overlay the mask with dots in areas where agreement criteria are met
+                    axes[indices[0]].contourf(
+                        all_diffs_avg.lon, all_diffs_avg.lat, within_threshold_2d,
+                        levels=[0.5, 1.5], colors='none', hatches=['////'], transform=ccrs.PlateCarree()
+                    )
+
+                    if subplots == "on":
+                        for (m, model) in enumerate(models):
+                            print(m+1)
+                            annotation = members[m] - \
+                                1 if model != "IPSL-CM6" else members[m]
+                            im_model = plot_subplots(indices[m+1], subplots, annotation,
+                                                     all_model_diffs_avg.sel(models=m), timestamps, axes[indices[m+1]], shp, custom_cmap, timeframe, scale, model, vmin=vmin, vmax=vmax)
+
+                    """ 3C Add color bar for entire plot"""
+                    # add cbar in the figure, for overall figure, not subplots
+                    # Define the position of the colorbar
+                    cbar_ax = fig.add_axes([0.92, 0.1, 0.02, 0.8])
+                    cbar = fig.colorbar(im, cax=cbar_ax, extend='both')
+
+                    # Increase distance between colorbar label and colorbar
+                    cbar.ax.yaxis.labelpad = 20
+                    if mode == 'dif':
+                        # cbar.set_label(f'$\Delta_{{ptb_type}}_{,{var}}$ [{unit}]', size='15')
                         cbar.set_label(
-                            f'{var} - model member std [{unit}]', size='15')
-                cbar.ax.tick_params(labelsize=12)
+                            rf'$\Delta_{{{ptbtype}, {var}}}$ [{unit}]', size=15)
+                        if mode == 'std':
+                            cbar.set_label(
+                                f'{var} - model member std [{unit}]', size='15')
+                    cbar.ax.tick_params(labelsize=12)
 
-                # adjust subplot spacing to be smaller
-                plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1,
-                                    top=0.9, wspace=0.05, hspace=0.05)
+                    # adjust subplot spacing to be smaller
+                    plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1,
+                                        top=0.9, wspace=0.05, hspace=0.05)
 
-                # if plotsave == 'save':
-                # os.makedirs(f"o_folder_base/{scale}/{timeframe}/{var}/", exist_ok=True)
-                # os.makedirs(f"{o_folder_diff}/", exist_ok=True)
-                # o_file_name = f"{o_folder_diff}/{model}.{var_suffix}.DIF.00{member}.{y0}_{ye}_{timeframe}_{diftype}.png"
-                # plt.savefig(o_file_name, bbox_inches='tight')
-                plt.show()
-                # return
+                    hedging_patch = mpatches.Patch(
+                        label='80% of models agree on sign of change', hatch='////', edgecolor='black', facecolor='none')
+
+                    # Add the custom legend to the plot
+                    axes[indices[0]].legend(handles=[
+                                            hedging_patch], loc='lower center', bbox_to_anchor=(0.75, -0.9), fontsize=12)
+
+                    # if plotsave == 'save':
+                    o_folder_diff = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/01. Climate data/02. Perturbations/"
+
+                    os.makedirs(f"{o_folder_diff}/", exist_ok=True)
+                    o_file_name = f"{o_folder_diff}/Mosaic.{var}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.png"
+                    plt.savefig(o_file_name, bbox_inches='tight')
+                    plt.show()
+                    # return

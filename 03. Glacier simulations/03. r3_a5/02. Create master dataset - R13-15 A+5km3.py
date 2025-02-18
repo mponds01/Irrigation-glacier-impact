@@ -148,7 +148,7 @@ else:
 
 # Output the DataFrame
 
-df_3r.to_csv(f"{wd_path}/masters/master_gdirs_r3_rgi_date_A_V.csv")
+# df_3r.to_csv(f"{wd_path}/masters/master_gdirs_r3_rgi_date_A_V.csv")
 print(df_3r.head)
 
 

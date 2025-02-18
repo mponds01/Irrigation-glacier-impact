@@ -475,7 +475,6 @@ for m, model in enumerate(models):
         # load the gdirs_3r_a5
         for (g, gdir) in enumerate(gdirs_3r_a5):
             count += 1
-            print(round((count*100)/(len(gdirs_3r_a5)*members[m]), 2))
 
             try:
                 # provide the model flowlines and years for the mbmod
@@ -496,7 +495,7 @@ for m, model in enumerate(models):
                         mb_ts_all_ext.append(
                             (gdir.rgi_id, years_ext, mb_ts_ext))
                 else:
-                    print(gdir.rgi_id)
+                    # print(gdir.rgi_id)
                     mbmod = massbalance.MonthlyTIModel(
                         # gdir, filename='gcm_data', input_filesuffix='_perturbed_{}_counterfactual'.format(sample_id))
                         gdir, filename='gcm_data', input_filesuffix='_perturbed_{}'.format(sample_id))
@@ -692,87 +691,94 @@ cfg.PARAMS['use_multiprocessing'] = False
 subset_gdirs = gdirs_3r_a5[:100]  # [:100]
 
 members = [1, 6, 3, 4, 6, 4]
-models = ["IPSL-CM6", "CNRM", "E3SM", "CESM2", "CNRM", "NorESM"]
+models = ["IPSL-CM6"]  # , "CNRM", "E3SM", "CESM2", "CNRM", "NorESM"]
 
 y0_comitted = 2014
 halfsize = 14.5
 
+errors = []
 for m, model in enumerate(models):
     for member in range(members[m]):
         # try:
         sample_id = f"{model}.00{member}"
         print(sample_id)
-        workflow.execute_entity_task(
-            tasks.init_present_time_glacier, subset_gdirs)  # gdirs_3r_a5)
+        # workflow.execute_entity_task(
+        #     tasks.init_present_time_glacier, subset_gdirs)  # gdirs_3r_a5)
 
         # out_id = f'_perturbed_{sample_id}_counterfactual'
-        out_id = f'_perturbed_{sample_id}_committed_random'
-        out_id_climate_run = f'_perturbed_{sample_id}'
+        out_id = f'_perturbed_{sample_id}_committed_random_test_CF'
+        out_id_climate_run = f'_perturbed_{sample_id}_counterfactual'
 
-        if __name__ == '__main__':
-            workflow.execute_entity_task(tasks.run_random_climate, subset_gdirs,  # gdirs_3r_a5,
-                                         nyears=250,  # nr of years to simulate
-                                         ys=y0_comitted,  # start year of simulation
-                                         halfsize=halfsize,  # half size applied to random climate distriubtion
-                                         y0=y0_comitted-halfsize,
-                                         ye=None, bias=0,  # bias to correction of climate data set to 0
-                                         seed=2,  # initializing the random nr generator with number, so every time the same number applies
-                                         precipitation_factor=None, store_monthly_step=False,
-                                         store_model_geometry=None, store_fl_diagnostics=True,
-                                         climate_filename='gcm_data',  # using the perturbed gcm data
+        # try:
+        workflow.execute_entity_task(tasks.run_random_climate, subset_gdirs,  # gdirs_3r_a5,
+                                     nyears=250,  # nr of years to simulate
+                                     ys=y0_comitted,  # start year of simulation
+                                     halfsize=halfsize,  # half size applied to random climate distriubtion
+                                     y0=y0_comitted-halfsize,
+                                     ye=None, bias=0,  # bias to correction of climate data set to 0
+                                     seed=2,  # initializing the random nr generator with number, so every time the same number applies
+                                     precipitation_factor=None, store_monthly_step=False,
+                                     store_model_geometry=None, store_fl_diagnostics=True,
+                                     climate_filename='gcm_data',  # using the perturbed gcm data
 
-                                         # climate_input_filesuffix='_perturbed_{}_counterfactual'.format(sample_id),
-                                         climate_input_filesuffix='_perturbed_{}'.format(
-                                             sample_id),
+                                     climate_input_filesuffix='_perturbed_{}_counterfactual'.format(
+                                         sample_id),
+                                     # climate_input_filesuffix='_perturbed_{}'.format(
+                                     # sample_id),
 
-                                         output_filesuffix=out_id,  # adding file suffix
-                                         init_model_filesuffix=out_id_climate_run,
-                                         init_model_yr=y0_comitted,
-                                         continue_on_error=True  # the year of the initial run you wnat to start from
-                                         )
-        opath = os.path.join(
-            # sum_dir, f'climate_run_output_perturbed_{sample_id}_counterfactual.nc')
-            sum_dir, f'climate_run_output_perturbed_{sample_id}_comitted_random.nc')
+                                     output_filesuffix=out_id,  # adding file suffix
+                                     init_model_filesuffix=out_id_climate_run,
+                                     init_model_yr=y0_comitted,
+                                     continue_on_error=True  # the year of the initial run you wnat to start from
+                                     )
+        #     opath = os.path.join(
+        #         # sum_dir, f'climate_run_output_perturbed_{sample_id}_counterfactual.nc')
+        #         sum_dir, f'climate_run_output_perturbed_{sample_id}_comitted_random.nc')
 
-        log_path = os.path.join(
-            log_dir, f'stats_perturbed_{sample_id}_comitted_random.csv')
+        #     log_path = os.path.join(
+        #         log_dir, f'stats_perturbed_{sample_id}_comitted_random.csv')
 
-        if __name__ == '__main__':
-            ds_ptb = utils.compile_run_output(
-                subset_gdirs, path=opath, input_filesuffix=out_id)  # gdirs_3r_a5, compile the run output
-            df_stats = utils.compile_glacier_statistics(
-                subset_gdirs, path=log_path)
+        # except Exception as e:
+        #     error_msg = f"Error for sample {sample_id}: {str(e)}\n{traceback.format_exc()}"
+        #     print(error_msg)  # Optional: Print error to console
+        #     errors.append(error_msg)
 
-out_id = f'_baseline_W5E5.000_committed_random'
-out_id_climate_run = '_baseline_W5E5.000'
-if __name__ == '__main__':
-    workflow.execute_entity_task(tasks.run_random_climate, subset_gdirs,  # gdirs_3r_a5,
-                                 nyears=250,  # nr of years to simulate
-                                 ys=y0_comitted,  # start year of simulation
-                                 halfsize=halfsize,  # half size applied to random climate distriubtion
-                                 y0=y0_comitted-halfsize,
-                                 ye=None, bias=0,  # bias to correction of climate data set to 0
-                                 seed=2,  # initializing the random nr generator with number, so every time the same number applies
-                                 precipitation_factor=None, store_monthly_step=False,
-                                 store_model_geometry=None, store_fl_diagnostics=True,
-                                 climate_filename='climate_historical',  # using the perturbed gcm data
-                                 output_filesuffix=out_id,  # adding file suffix
-                                 init_model_filesuffix=out_id_climate_run,
-                                 init_model_yr=y0_comitted,
-                                 continue_on_error=True
-                                 )
+        # if __name__ == '__main__':
+        #     ds_ptb = utils.compile_run_output(
+        #         subset_gdirs, path=opath, input_filesuffix=out_id)  # gdirs_3r_a5, compile the run output
+        #     df_stats = utils.compile_glacier_statistics(
+        #         subset_gdirs, path=log_path)
 
-log_path_base = os.path.join(
-    log_dir, f'stats_perturbed_W5E5.000_comitted_random.csv')
+# out_id = f'_baseline_W5E5.000_committed_random'
+# out_id_climate_run = '_baseline_W5E5.000'
+# if __name__ == '__main__':
+#     workflow.execute_entity_task(tasks.run_random_climate, subset_gdirs,  # gdirs_3r_a5,
+#                                  nyears=250,  # nr of years to simulate
+#                                  ys=y0_comitted,  # start year of simulation
+#                                  halfsize=halfsize,  # half size applied to random climate distriubtion
+#                                  y0=y0_comitted-halfsize,
+#                                  ye=None, bias=0,  # bias to correction of climate data set to 0
+#                                  seed=2,  # initializing the random nr generator with number, so every time the same number applies
+#                                  precipitation_factor=None, store_monthly_step=False,
+#                                  store_model_geometry=None, store_fl_diagnostics=True,
+#                                  climate_filename='climate_historical',  # using the perturbed gcm data
+#                                  output_filesuffix=out_id,  # adding file suffix
+#                                  init_model_filesuffix=out_id_climate_run,
+#                                  init_model_yr=y0_comitted,
+#                                  continue_on_error=True
+#                                  )
 
-opath_base = os.path.join(
-    sum_dir, 'climate_run_output_baseline_W5E5.000_comitted_random.nc')
+# log_path_base = os.path.join(
+#     log_dir, f'stats_perturbed_W5E5.000_comitted_random.csv')
 
-df_stats = utils.compile_glacier_statistics(
-    subset_gdirs, path=log_path_base)
+# opath_base = os.path.join(
+#     sum_dir, 'climate_run_output_baseline_W5E5.000_comitted_random.nc')
 
-ds_base = utils.compile_run_output(
-    subset_gdirs, input_filesuffix=out_id, path=opath_base)  # gdirs_3r_a5,
+# df_stats = utils.compile_glacier_statistics(
+#     subset_gdirs, path=log_path_base)
+
+# ds_base = utils.compile_run_output(
+#     subset_gdirs, input_filesuffix=out_id, path=opath_base)  # gdirs_3r_a5,
 
 
 # %% Cell 10: Run comitted mass loss (constant climate data)

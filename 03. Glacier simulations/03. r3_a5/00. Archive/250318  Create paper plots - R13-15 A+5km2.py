@@ -61,6 +61,8 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from shapely.geometry import Point
 import matplotlib.gridspec as gridspec
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+
 
 
 function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/src/03. Glacier simulations"
@@ -273,7 +275,7 @@ volume_df_avg.rename(
     columns={'grid_lon': 'lon', 'grid_lat': 'lat'}, inplace=True)
 
 volume_df_avg.to_csv(opath_averaged_csv)
-#%% Cell 3: Create map plot _ ∆B or ∆V
+#%% Cell 3: Create map plot - ∆B or ∆V
 models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM"]#, "IPSL-CM6"]
 
 """ Load data"""
@@ -1033,6 +1035,8 @@ for f, filepath in enumerate(["climate_run_output_baseline_W5E5.000.nc", f"clima
                 labeltext_range=None
             axes_dict[region_id].fill_between(climate_run_output_noirr["time"].values, min_values_noirr, max_values_noirr,
                             color=colors[f"{run_type}"][f], alpha=0.3, label=None, zorder=16)
+            axes_dict[region_id].axhline(100, color='black', linestyle='--',
+                        linewidth=1, zorder=1)  # Dashed line at 0
            
             try:
                 subregion_name = subregion_ds.full_name.iloc[0]
@@ -1060,6 +1064,8 @@ for f, filepath in enumerate(["climate_run_output_baseline_W5E5.000.nc", f"clima
     max_values_noirr_all = np.max(stacked_member_data_all, axis=0).flatten()
     ax_big.fill_between(climate_run_output_noirr["time"].values, min_values_noirr_all, max_values_noirr_all,
                     color=colors[f"{run_type}"][f], alpha=0.3, label=labeltext_range, zorder=16)
+    ax_big.axhline(100, color='black', linestyle='--',
+                linewidth=1, zorder=1)  # Dashed line at 0
     # Set labels and title for the combined plot
     ax_big.set_ylabel("∆Volume compared to 1985 All Forcings [%]", fontweight='bold')
     ax_big.set_xlabel("Time [year]")
@@ -1097,12 +1103,12 @@ o_folder_data = (
 o_file_data = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions.csv"
 unit="km3"
 if unit=="Gt":
-    rho=0.917 #Gt/km³
+    rho=0.85 #Gt/km³
     o_file_data_processed = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions_paper_output_table_gt.csv"
 
 else:
     rho=1
-    o_file_data_processed = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions_paper_output_table.csv"
+    o_file_data_processed = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions_paper_output_table_absolute.csv"
 
 # Load dataset
 ds = pd.read_csv(o_file_data)
@@ -1136,8 +1142,8 @@ df_total = pd.DataFrame({
 ds_all_losses = pd.concat([ds_subregions, df_total], ignore_index=True)
 
 # Calculate deltas
-ds_all_losses["delta_irr"] = ds_all_losses["volume_loss_percentage_noirr"] / \
-    ds_all_losses["volume_loss_percentage_irr"]*100
+ds_all_losses["delta_irr"] = ds_all_losses["volume_loss_percentage_irr"] - ds_all_losses["volume_loss_percentage_noirr"]
+ds_all_losses["delta_irr_abs"] = ds_all_losses["volume_irr"] - ds_all_losses["volume_noirr"]
 
 # Load RGI data
 df = pd.read_csv(
@@ -1161,49 +1167,6 @@ nr_glaciers = pd.concat([nr_glaciers, pd.DataFrame({"subregion": [
                         "total"], "nr_glaciers": [nr_glaciers["nr_glaciers"].sum()]})], ignore_index=True)
 
 
-# Process uncertainties
-# for scenario in ["noi", "cf"]:
-#     o_file_data_uncertainties = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions.uncertainties.{scenario}.csv"
-
-#     # Load uncertainties - lowest and heightest modelled values
-#     ds_uncertainties = pd.read_csv(o_file_data_uncertainties, index_col=0)
-#     ds_uncertainties.index.name = "subregion"
-
-#     # Calculate confidence intervals
-#     mean_values = ds_uncertainties.mean(axis=1)
-#     sem_values = ds_uncertainties.sem(axis=1)
-#     confidence_level = 0.90
-#     degrees_of_freedom = ds_uncertainties.shape[1] - 1
-#     critical_value = stats.t.ppf(
-#         (1 + confidence_level) / 2, degrees_of_freedom)
-#     margin_of_error_abs = critical_value * sem_values
-
-#     # Create confidence intervals DataFrame
-#     confidence_intervals = pd.DataFrame({
-#         f"error_margin_{scenario}_abs": margin_of_error_abs,
-#     }).reset_index()
-
-#     # Calculate total uncertainties
-#     ds_uncertainties_total = ds_uncertainties.sum().round(2)
-#     mean_values_total = ds_uncertainties_total.mean()
-#     sem_values_total = ds_uncertainties_total.sem()
-#     critical_value_total = stats.t.ppf(
-#         (1 + confidence_level) / 2, degrees_of_freedom)
-#     margin_of_error_total_abs = critical_value_total * sem_values_total
-
-#     df_uncertainties_total = pd.DataFrame({
-#         "subregion": ["total"],
-#         f"error_margin_{scenario}_abs": [margin_of_error_total_abs],
-#     })
-
-#     # Combine with total
-#     confidence_intervals = pd.concat(
-#         [confidence_intervals, df_uncertainties_total], ignore_index=True)
-
-#     # Merge confidence intervals into ds_all_losses
-#     ds_all_losses = ds_all_losses.merge(
-#         confidence_intervals, on="subregion", how="left")
-
 # Merge RGI info into ds_all_losses
 ds_all_losses['subregion'] = areas["subregion"]
 ds_all_losses = ds_all_losses.merge(areas, on="subregion", how="left")
@@ -1218,12 +1181,482 @@ ds_all_losses = ds_all_losses.merge(nr_glaciers, on="subregion", how="left")
 ds_all_losses = ds_all_losses[[
     "subregion", "nr_glaciers", "area", f"volume",
     "volume_loss_percentage_irr", "volume_irr",
-    "volume_loss_percentage_noirr", "volume_noirr",  "delta_irr",#"error_margin_noi_rel", "error_margin_noi_abs",
+    "volume_loss_percentage_noirr", "volume_noirr",  "delta_irr", "delta_irr_abs"#"error_margin_noi_rel", "error_margin_noi_abs",
     # "volume_loss_percentage_cf", "volume_cf", "error_margin_cf_rel", "error_margin_cf_abs", "delta_cf",
 
 ]].round(2)
 
 ds_all_losses.to_csv(o_file_data_processed)   
+    
+    
+    
+    
+    
+    
+    
+    
+#%% Cell 6: Temperature plot
+
+
+def plot_subplots(index, subplots, annotation, diff, timestamps, axes, shp, custom_cmap, timeframe, scale, title, vmin=None, vmax=None):
+
+    for time_idx, timestamp_name in enumerate(timestamps):
+
+        # Determine subplot location based on timeframe
+        if timeframe == 'monthly':
+            row = time_idx // 4  # Calculate row index
+            col = time_idx % 4
+            ax = axes[row, col]
+        elif timeframe == 'seasonal':
+            row = time_idx // 2
+            col = time_idx % 2
+            ax = axes[row, col]
+        elif timeframe == 'annual':
+            row, col = 0, 0
+            ax = axes
+
+        # Select time dimension based on scale and timeframe
+        if scale == "Local":
+            time_dim_name = list(diff.dims)[0]
+        elif scale == "Global" and timeframe != 'annual':
+            time_dim_name = list(diff.dims)[2]
+
+        # Select relevant data slice
+        if timeframe == 'annual':
+            diff_sel = diff
+        else:
+            diff_sel = diff.isel({time_dim_name: time_idx})
+
+        # Convert Dataset to DataArray if necessary
+        if isinstance(diff_sel, xr.Dataset):
+            diff_sel = diff_sel[list(diff_sel.data_vars.keys())[0]]
+
+        # Plot data and the Karakoram outline
+        im = diff_sel.plot.imshow(ax=ax, vmin=vmin, vmax=vmax, extend='both',
+                                  transform=ccrs.PlateCarree(), cmap=custom_cmap, add_colorbar=False)
+
+        shp.plot(ax=ax, edgecolor='black', linewidth=1, facecolor='none')
+        ax.coastlines(resolution='10m')
+        # Find min and max values, and annotate them
+        diff_sel_min = diff_sel.fillna(diff_sel.max())
+        diff_sel_max = diff_sel.fillna(diff_sel.min())
+
+        min_value_index = np.unravel_index(
+            np.argmin(diff_sel_min.values), diff_sel_min.shape)
+        max_value_index = np.unravel_index(
+            np.argmax(diff_sel_max.values), diff_sel_max.shape)
+
+        # Extract coordinates for min and max values
+        min_lon, min_lat = diff_sel.lon.values[min_value_index[1]
+                                               ], diff_sel.lat.values[min_value_index[0]]
+        max_lon, max_lat = diff_sel.lon.values[max_value_index[1]
+                                               ], diff_sel.lat.values[max_value_index[0]]
+
+        # Plot markers for min and max values
+        ax.plot(min_lon, min_lat, marker='o',
+                markersize=7, color='blue')  # Min marker
+        ax.plot(max_lon, max_lat, marker='o',
+                markersize=7, color='red')  # Max marker
+
+        min_value = diff_sel[min_value_index]
+        max_value = diff_sel[max_value_index]
+
+        # Annotate with the timestamp & min max values
+        ax.annotate(annotation, xy=(1, 1), xytext=(-10, -10), xycoords='axes fraction',
+                    textcoords='offset points', ha='right', va='top', fontsize=12,
+                    bbox=dict(boxstyle='square', fc='white', alpha=1))
+
+        if index == "A":
+
+            ax.annotate(f'Min: {min_value:.1f}', xy=(65, 50), xytext=(
+                65, 50), fontsize=12, ha='left', va='top')
+            ax.annotate(f'Max: {max_value:.1f}', xy=(81, 50), xytext=(
+                81, 50), fontsize=12, ha='left', va='top')
+            ax.plot(64, 49.5, marker='o', color='blue', markersize=5)
+            ax.plot(79, 49.5, marker='o', color='red', markersize=5)
+
+        # Set gridlines and labels
+        gl = ax.gridlines(draw_labels=True)
+        gl.top_labels = False
+        gl.right_labels = False
+
+        if index in ["A", "D"]:
+            gl.ylabel_style = {'size': 12}
+            gl.ylocator = plt.MaxNLocator(nbins=3)
+        else:
+            gl.left_labels = False
+
+        # (timeframe == 'monthly' and row == 2) or (timeframe == 'seasonal' and row == 1) or (timeframe == 'annual'):
+        if index in ["D", "E", "F"] or subplots != "on":
+            gl.xlabel_style = {'size': 12}
+            gl.xlocator = plt.MaxNLocator(nbins=3)
+        else:
+            gl.bottom_labels = False
+
+        gl.xformatter = LONGITUDE_FORMATTER
+        gl.yformatter = LATITUDE_FORMATTER
+
+        """4 Include labels for the cbar and for the y and x axis"""
+
+        ax.set_title(title)
+
+    return im
+
+
+# def plot_P_T_perturbations_avg(scale, var, timeframe, mode, diftype, plotsave):
+""" Part 0 - Set plotting parameters"""
+
+
+# y0 = 1985  # if running from 1901 to 1985, than indicate extra id of counterfactual to access the data
+# ye = 2014
+# if running from 1901 to 1985, than indicate extra id of counterfactual to access the data
+y0s = [1985]#, 1901]
+yes = [2014]#, 1985]
+extra_ids = [""]#, "_counterfactual"]
+ptb_types = ["Irr"]#, "NoForcing"]
+scale = "Local"
+subplots = "on"
+# "Temperature"]:  # ,"Temperature"]:
+for var in ["Temperature", "Precipitation"]:
+    for timeframe in ["annual"]:  # :, "seasonal", "monthly"]:
+        for mode in ['dif']:  # , 'std']:
+            for y, y0 in enumerate(y0s):
+                ye = yes[y]
+                extra_id = extra_ids[y]
+                ptbtype = ptb_types[y]
+                if var == "Precipitation" and mode == 'dif':
+                    diftypes = ['abs', 'rel']
+                else:
+                    diftypes = ['abs']
+                for dif in diftypes:
+                    print(var, timeframe, dif)
+                    diftype = dif
+                    # plot_P_T_perturbations_avg(scale,var, timeframe, mode, dif, "off")
+                    # adjust figure sizes towards type of plot# adjust figure sizes towards type of plot
+                    if scale == "Global":
+                        if timeframe == 'monthly':
+                            figsize = (25, 12)
+                            fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
+                                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'ymon'
+                            timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
+                                          'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+                            time_averaging = 'time.month'
+                            time_type = 'month'
+                            col_wrap = 4
+                        if timeframe == 'seasonal':
+                            figsize = (12, 7.5)
+                            fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
+                                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'yseas'
+                            timestamps = ['DJF', 'MAM', 'JJA', 'SON']
+                            time_averaging = 'time.season'
+                            time_type = 'season'
+                            col_wrap = 2
+                        if timeframe == 'annual':
+                            figsize = (7, 5)  # (50, 25)#(7, 5)
+                            fig, axes = plt.subplots(nrows=1, ncols=1, subplot_kw={
+                                                     'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'year'
+                            timestamps = ['YEAR']
+                            time_averaging = 'time.year'
+                            time_type = 'year'
+                            col_wrap = 1
+
+                    if scale == "Local":
+                        if timeframe == 'monthly':
+                            figsize = (18, 10)
+                            # fig, axes = plt.subplots(nrows=3, ncols=4, subplot_kw={
+                            #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'ymon'
+                            timestamps = ['JAN', 'FEB', 'MAR', 'APR', 'MAY',
+                                          'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+                            time_averaging = 'time.month'
+                            time_type = 'month'
+                            col_wrap = 4
+                        if timeframe == 'seasonal':
+                            figsize = (9, 7)
+                            # fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
+                            #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'yseas'
+                            timestamps = ['DJF', 'MAM', 'JJA', 'SON']
+                            time_averaging = 'time.season'
+                            time_type = 'season'
+                            col_wrap = 2
+                        if timeframe == 'annual':
+                            figsize = (7, 5)
+                            # fig, axes = plt.subplots(nrows=1, ncols=5, subplot_kw={
+                            #                          'projection': ccrs.PlateCarree()}, figsize=figsize)
+                            time_signature = 'year'
+                            timestamps = ['YEAR']
+                            time_averaging = 'time.year'
+                            time_type = 'year'
+                            col_wrap = 1
+
+                    # Provide cbar ranges and colors for plots for different variables, modes (dif/std) and difference types (abs/rel)
+                    if var == "Precipitation":
+                        variable_name = "pr"
+                        var_suffix = "PR"
+                        if mode == 'dif' and diftype == 'rel':
+                            mode_suff = 'total'
+                            vmin = -20
+                            vmax = 20
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:mocha'), (zero_scaled,
+                                                          'xkcd:white'), (1, 'xkcd:aquamarine')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+                        if mode == 'dif' and diftype == 'abs':
+                            mode_suff = 'total'
+                            vmin = -50
+                            vmax = 75
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:mocha'), (zero_scaled,
+                                                          'xkcd:white'), (1, 'xkcd:aquamarine')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+                        if mode == 'std':
+                            mode_suff = 'std'
+                            vmin = -40
+                            vmax = 40
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:peach'), (zero_scaled, 'xkcd:white'),
+                                      (1, 'xkcd:light aquamarine')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+
+                    elif var == "Temperature":
+                        variable_name = "tas"
+                        var_suffix = "TEMP"
+                        if mode == 'dif':
+                            mode_suff = 'total'
+                            vmin = -1.5
+                            vmax = 1.5
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'cornflowerblue'), (zero_scaled,
+                                                              'xkcd:white'), (1, 'xkcd:tomato')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+                        if mode == 'std':
+                            mode_suff = 'std'
+                            vmin = -1.5
+                            vmax = 1.5
+                            zero_scaled = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                            colors = [(0, 'xkcd:lightblue'), (zero_scaled,
+                                                              'xkcd:white'), (1, 'xkcd:pink')]
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_cmap', colors)
+
+                    # Set label and tick parameters for the colorbar
+                    if var == "Precipitation":
+                        if mode == 'std' or diftype == 'abs':
+                            unit = 'mm'
+                        else:
+                            unit = '%'
+                    elif var == "Temperature":
+                        unit = '°C'
+                    else:
+                        unit = 'Unknown'
+
+                    members = [1, 3, 4, 6, 4]
+                    # members = [1, 1, 1, 1]
+                    all_diff = []  # create a dataset to add all member differences
+                    all_model_diffs = []
+                    models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
+
+                    for (m, model) in enumerate(models):
+                        model_diff = []
+                        for member in range(members[m]):
+                            # only open data for non model averages (except for IPSL-CM6 as only one member)
+                            if model == "IPSL-CM6" or member != 0:
+
+                                # Part 1: Delete
+                                diff_folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/03. Regridded Perturbations/{var}/{timeframe}/{model}/{member}"
+                                ifile_diff = f"{diff_folder_in}/REGRID.{model}.{var_suffix}.DIF.00{member}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.nc"
+                                diff = xr.open_dataset(ifile_diff)
+
+                                if scale == "Local":  # scale the data to the local scale
+                                    diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (
+                                        diff.lat >= 22) & (diff.lat <= 52), drop=True)
+                                # loose all the filtered data (nan)
+                                diff_clean = diff.dropna(dim="lon", how="all")
+                                # include the values in the list for caluclating the avg difference by model
+                                model_diff.append(diff_clean)
+                                # include the values in the list for caluclating the avg difference over all models
+                                all_diff.append(diff_clean)
+                        all_model_diff = xr.concat(
+                            model_diff, dim="models").mean(dim="models")  # concatenate all models into a list averaged by model
+                        all_model_diffs.append(all_model_diff)
+                    all_model_diffs_avg = xr.concat(
+                        all_model_diffs, dim="models")  # concatenate all models
+                    all_diffs_avg = xr.concat(all_diff, dim="models").mean(
+                        dim="models")  # concatenate all members and calculate the mean over all the models
+
+                    """ Part 2 - Shapefile outline for Karakoram Area to be included"""
+                    # path to  shapefile
+                    shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
+                    shp = gpd.read_file(shapefile_path)
+                    target_crs = 'EPSG:4326'
+                    shp = shp.to_crs(target_crs)
+
+                    indices = ["A", "B", "C", "D"]#, "E", "F"]
+
+                    # Create the mosaic plot
+                    if subplots == "on":
+                        layout = """
+                        AAB
+                        CCD
+                        """
+                        fig, axes = plt.subplot_mosaic(layout, subplot_kw={'projection': ccrs.PlateCarree()},
+                                                       figsize=figsize,
+                                                       gridspec_kw={'wspace': 0, 'hspace': 0.4})
+                    else:
+                        layout = """
+                        AA
+                        AA
+                        """
+                        fig, axes = plt.subplot_mosaic(layout, subplot_kw={'projection': ccrs.PlateCarree()},
+                                                       figsize=figsize,
+                                                       gridspec_kw={'wspace': 0, 'hspace': 0.4})
+                    # plot the irrmip difference
+                    im = plot_subplots(indices[0], subplots, (sum(members)-len(models)+1),
+                                       all_diffs_avg, timestamps, axes[indices[0]], shp, custom_cmap, timeframe, scale, f"IRRMIP", vmin=vmin, vmax=vmax)
+
+                    # Step 1: Calculate the mean across models for each grid point
+                    # mean_diff = xr.concat([diff[variable_name] for diff in all_model_diffs], dim="models").mean(dim="models")
+
+                    # Step 2: Calculate the absolute difference between each model and the mean
+                    # agreement_mask = xr.concat(
+                    #     [np.abs(diff['tas'] - mean_diff) for diff in all_model_diffs],
+                    #     dim="models"
+                    # )
+
+                    sign_diff = xr.concat([np.sign(diff[variable_name])
+                                          for diff in all_model_diffs], dim="models")
+                    agreement_on_sign = (
+                        abs(sign_diff.mean(dim="models")) >= 0.8)
+
+                    # Step 3: Combine the conditions to create the final mask
+                    # We need areas where all models are within 0.5 degrees and 80% agree on the sign
+                    # & agreement_mask.all(dim="models")
+                    within_threshold = agreement_on_sign
+                    # Step 4: Convert the mask to 2D by removing the singleton 'variable' dimension if needed
+                    within_threshold_2d = within_threshold.astype(
+                        int).squeeze()
+
+                    # Step 6: Overlay the mask with dots in areas where agreement criteria are met
+                    axes[indices[0]].contourf(
+                        all_diffs_avg.lon, all_diffs_avg.lat, within_threshold_2d,
+                        levels=[0.5, 1.5], colors='none', hatches=['////'], transform=ccrs.PlateCarree()
+                    )
+
+                    if subplots == "on":
+                        for (m, model) in enumerate(models):
+                            print(m+1)
+                            annotation = members[m] - \
+                                1 if model != "IPSL-CM6" else members[m]
+                            im_model = plot_subplots(indices[m+1], subplots, annotation,
+                                                     all_model_diffs_avg.sel(models=m), timestamps, axes[indices[m+1]], shp, custom_cmap, timeframe, scale, model, vmin=vmin, vmax=vmax)
+
+                    """ 3C Add color bar for entire plot"""
+                    # add cbar in the figure, for overall figure, not subplots
+                    # Define the position of the colorbar
+                    cbar_ax = fig.add_axes([0.92, 0.1, 0.02, 0.8])
+                    cbar = fig.colorbar(im, cax=cbar_ax, extend='both')
+
+                    # Increase distance between colorbar label and colorbar
+                    cbar.ax.yaxis.labelpad = 20
+                    if mode == 'dif':
+                        # cbar.set_label(f'$\Delta_{{ptb_type}}_{,{var}}$ [{unit}]', size='15')
+                        cbar.set_label(
+                            rf'$\Delta_{{{ptbtype}, {var}}}$ [{unit}]', size=15)
+                        if mode == 'std':
+                            cbar.set_label(
+                                f'{var} - model member std [{unit}]', size='15')
+                    cbar.ax.tick_params(labelsize=12)
+
+                    # adjust subplot spacing to be smaller
+                    plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1,
+                                        top=0.9, wspace=0.05, hspace=0.05)
+
+                    hedging_patch = mpatches.Patch(
+                        label='80% of models agree on sign of change', hatch='////', edgecolor='black', facecolor='none')
+
+                    # Add the custom legend to the plot
+                    axes[indices[0]].legend(handles=[
+                                            hedging_patch], loc='lower center', bbox_to_anchor=(0.75, -0.9), fontsize=12)
+
+                    # if plotsave == 'save':
+                    o_folder_diff = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/01. Climate data/02. Perturbations/"
+
+                    os.makedirs(f"{o_folder_diff}/", exist_ok=True)
+                    o_file_name = f"{o_folder_diff}/Mosaic.{var}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.png"
+                    plt.savefig(o_file_name, bbox_inches='tight')
+                    plt.show()
+    
+    
+    
+    
+    
+#%%
+
+folder_data=o_folder_data = ("/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/Irrigation_Data_Table.csv"
+                       )
+
+inputdata=pd.read_csv(folder_data, header=0, index_col="Year")
+# Define blue color shades and hatch patterns
+# colors = ['#003f5c', '#2f4b7c', '#665191', '#a05195', '#d45087']
+cmap = cm.get_cmap('Blues', 6)  # Get 5 different shades of blue
+colors = [cmap(i) for i in np.linspace(0.2, 1, 6)]  # Adjust brightness
+
+hatch_patterns = ['//', '\\', '//', '\\', '//']
+
+plt.figure(figsize=(8,5))
+stacked_areas = plt.stackplot(inputdata.index,
+              inputdata["USA (Mha)"],
+              inputdata["Pakistan (Mha)"],
+              inputdata["China (Mha)"],
+              inputdata["India (Mha)"],
+              inputdata["Other countries (Mha)"],
+              labels=["USA", "Pakistan", "China", "India", "Other countries"],
+              alpha=0.7, colors=colors)  # Adjust transparency
+
+# Annotate country names on the plot
+country_labels = ["USA", "Pakistan", "China", "India", "Other \n countries","total"]
+mid_year = inputdata.index[len(inputdata) // 2]  # Select a middle year for annotation
+cumulative_values = np.zeros(len(inputdata))  # Initialize cumulative sum for stacking
+stacked_data = np.cumsum(inputdata.values, axis=1)
+for i, country in enumerate(inputdata.columns[:-1]):
+    mid_year = inputdata.index[len(inputdata) // 2]  # Middle year for annotation
+    mid_index = 10#len(inputdata) // 2  # Middle index of data
+    country_label=country_labels[i]
+    
+    # Compute the middle value of the stacked region
+    if i == 0:
+        mid_value = inputdata.iloc[mid_index, i] / 2  # First country is at the bottom
+    else:
+        mid_value = (stacked_data[mid_index, i] + stacked_data[mid_index, i - 1]) / 2  # Middle of stacked area
+
+    # Annotate the country in the correct position
+    plt.text(1998, mid_value, country_label, fontsize=12,  ha='right', va='center')
+             # bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+
+# Labels and title
+plt.xlabel("Year")
+
+# Set xticks to match the "Year" column (index-based ticks)
+
+plt.ylabel("Area Equipped for Irrigation (Mha)")
+plt.title("Global Irrigation Expansion Over Time")
+# plt.legend(loc="upper left")
+
+# Show the plot
+plt.show()
+
+    
+    
+    
+    
     
     
     

@@ -386,3 +386,88 @@ hugo_ds.to_csv(
     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
 
 hugo_df = hugo_ds[['rgi_id', 'B_hugo']]
+
+
+#%% Add Comitted mass loss for boxplots new master ds
+
+
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
+# df = pd.read_csv(
+#     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
+master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model averages ending with 0 except for IPSL
+               (df['sample_id'].str.startswith('IPSL'))]
+
+members_averages = [2, 3,  3 ,5, 1 ]
+models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM", "IPSL-CM6"]
+filepath=f"climate_run_output_baseline_W5E5.000_comitted_random.nc"
+
+# filepath_start=f"climate_run_output_baseline_W5E5.000.nc"
+
+#open and add comitted mass loss 
+baseline_path = os.path.join(
+    wd_path, "summary", filepath)
+baseline = xr.open_dataset(baseline_path)
+baseline_end=baseline.sel(time=2264) #use final year
+print(len(baseline_end.volume))
+
+com = baseline_end[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+com = com.rename(columns={'volume': 'V_2264_irr'})
+
+
+merged = pd.merge(master_ds, com, on=['rgi_id'], how='left')
+
+start_baseline = xr.open_dataset(os.path.join( wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc"))
+
+for time_sel in [1985,2014]:
+    #open and add initial simulation volume 
+    baseline_start=start_baseline.sel(time=time_sel) #use initial year
+    start = baseline_start[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+    start = start.rename(columns={'volume': f'V_{time_sel}_irr'})
+    merged = pd.merge(merged, start, on=['rgi_id'], how='left')
+
+all_com_noi = []
+for m, model in enumerate(models_shortlist): #Load the data for other models and calculate respective loss for each 
+    for j in range(members_averages[m]):
+        sample_id = f"{model}.00{j + 1}" if members_averages[m] > 1 else f"{model}.000"
+        filepath = f'climate_run_output_perturbed_{sample_id}_comitted_random.nc'
+        
+        noirr_path = os.path.join(
+            wd_path, "summary", filepath)
+        noirr_all = xr.open_dataset(noirr_path)
+        noirr_all=noirr_all.sel(time=2264) #use final year
+        print(len(noirr_all.volume))
+
+        com_noi = noirr_all[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+        com_noi = com_noi.rename(columns={'volume': 'V_2264_noirr'})
+        com_noi['sample_id']=sample_id
+        all_com_noi.append(com_noi) 
+    
+all_com_noi_df = pd.concat(all_com_noi, ignore_index=True)
+
+merged = pd.merge(merged, all_com_noi_df, on=['rgi_id', 'sample_id'], how='left')
+merged.to_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv")
+
+for time_sel in [1985,2014]:
+    all_com_noi = []
+    for m, model in enumerate(models_shortlist): #Load the data for other models and calculate respective loss for each 
+        for j in range(members_averages[m]):
+            sample_id = f"{model}.00{j + 1}" if members_averages[m] > 1 else f"{model}.000"
+            filepath = f'climate_run_output_perturbed_{sample_id}.nc'
+            noirr_path = os.path.join(
+                wd_path, "summary", filepath)
+            noirr_all = xr.open_dataset(noirr_path)
+            noirr_all=noirr_all.sel(time=time_sel) #use final year
+            print(len(noirr_all.volume))
+            com_noi = noirr_all[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+            com_noi = com_noi.rename(columns={'volume': f'V_{time_sel}_noirr'})
+            com_noi['sample_id']=sample_id
+            all_com_noi.append(com_noi) 
+        
+    all_com_noi_df = pd.concat(all_com_noi, ignore_index=True)
+    
+    merged = pd.merge(merged, all_com_noi_df, on=['rgi_id', 'sample_id'], how='left')
+merged.to_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv")
+        

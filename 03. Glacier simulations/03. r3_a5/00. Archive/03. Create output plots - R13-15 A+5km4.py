@@ -12,7 +12,7 @@ This script runs makes plots of the selected 3 regions (13-14-15) with Areas lar
 
 # -*- coding: utf-8 -*-import oggm
 # from OGGM_data_processing import process_perturbation_data
-import mpl_axes_aligner
+
 import concurrent.futures
 from matplotlib.lines import Line2D
 import oggm
@@ -2342,7 +2342,7 @@ for v, var in enumerate(variables):
 # %% plot comitted data - % axis
 
 members_averages = [2, 3,  3,  5, 1]
-models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM", "IPSL-CM6"]
+models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM"]#, "IPSL-CM6"]
 
 # define the variables for p;lotting
 variables = ["volume", "area"]
@@ -2358,7 +2358,7 @@ error_ids = pd.read_csv(output_csv_path)['rgi_id'].tolist()
 subset_gdirs = gdirs_3r_a5[:100]
 
 nan_mask = pd.read_csv(os.path.join(
-    wd_path, "masters", "nan_mask_all_models_volume.csv")).rgi_ids
+    wd_path, "masters", "nan_mask_comitted_random.csv")).rgi_ids
 # Remove duplicates if needed
 nan_mask = set(pd.DataFrame({'rgi_id': nan_mask.unique()}).rgi_id.to_numpy())
 rgi_ids_test = []

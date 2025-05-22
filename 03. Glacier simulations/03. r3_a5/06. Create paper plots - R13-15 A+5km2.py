@@ -16,7 +16,7 @@ This script runs makes plots of the selected 3 regions (13-14-15) with Areas lar
 # import mpl_axes_aligner
 import concurrent.futures
 from shapely.geometry import LineString, MultiLineString
-
+import ast
 import string
 from matplotlib.lines import Line2D
 import oggm
@@ -57,16 +57,18 @@ import sys
 import textwrap
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
-from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm, Normalize, ListedColormap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from shapely.geometry import Point
 import matplotlib.gridspec as gridspec
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from matplotlib.patches import Rectangle, ConnectionPatch
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
 function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/src/03. Glacier simulations"
 sys.path.append(function_directory)
+
 # %% Cell 1: Set base parameters
 # colors = {
 
@@ -84,12 +86,20 @@ xkcd_colors = clrs.XKCD_COLORS
 colors = {
     "irr": ["#000000", "#555555"],  # Black and dark gray
     # Darker brown and golden yellow for contrast
-    "noirr": ["#f5bf03","#fdde6c"],#["#8B5A00", "#D4A017"],
-    "noirr_com": ["#E3C565", "#F6E3B0"],  # Lighter, distinguishable tan shades
-    "irr_com": ["#B5B5B5", "#D0D0D0"],  # Light gray, no change
-    "cf": ["#008B8B", "#40E0D0"],
-    "cf_com": ["#008B8B", "#40E0D0"]
+    # "noirr": ["#f5bf03","#fbeaac"],#["#8B5A00", "#D4A017"], #fdde6c
+    "noirr": ["dimgrey","darkgrey"],#["#8B5A00", "#D4A017"], #fdde6c
+    # "noirr_com": ["#E3C565", "#F6E3B0"],  # Lighter, distinguishable tan shades #
+    # "noirr_com": ["#380282", "#ceaefa"],  # Lighter, distinguishable tan shades #
+    "noirr_com": ["#FFC107", "#FFF3CD"],  # Lighter, distinguishable tan shades #
+    "irr_com": ["#fe4b03", "#D0D0D0"],  # Light gray, no change
+    # "irr_com": ["#B5B5B5", "#D0D0D0"],  # Light gray, no change
+
+    "cf": ["#004C4C", "#40E0D0"],
+    "cf_com": ["#008B8B", "#40E0D0"],
+    "cline": ["dimgrey", '#FFC107']
 }
+
+region_colors = {13: 'blue', 14: 'crimson', 15: 'orange'}
 
 
 colors_models = {
@@ -113,7 +123,8 @@ y0_clim = 1985
 ye_clim = 2014
 
 
-fig_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/'
+fig_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/99. Final Figures/'
+# fig_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/'
 folder_path = '/Users/magaliponds/Documents/00. Programming'
 wd_path = f'{folder_path}/03. Modelled perturbation-glacier interactions - R13-15 A+5km2/'
 sum_dir = os.path.join(wd_path, 'summary')
@@ -132,7 +143,7 @@ for filename in os.listdir(wd_path_pkls):
             gdirs_3r_a5.append(gdir)
 #%% Cell 2a: map plot - prepare data
 
-"""Process master for map plot """
+"""Proc\ess master for map plot """
 
 # Load datasets
 df = pd.read_csv(
@@ -144,7 +155,8 @@ master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model a
 
 # Normalize values
 # divide all the B values with 1000 to transform to m w.e. average over 30 yrs
-master_ds[['B_noirr', 'B_irr', 'B_delta_irr', 'B_cf',  "B_delta_cf"]] /= 1000
+# master_ds[['B_noirr', 'B_irr', 'B_delta_irr', 'B_cf',  "B_delta_cf"]] /= 1000
+master_ds.loc[:, ['B_noirr', 'B_irr', 'B_delta_irr', 'B_cf', 'B_delta_cf']] /= 1000
 
 master_ds = master_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
                        'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta_irr', 'B_cf',  "B_delta_cf"]]
@@ -279,8 +291,100 @@ volume_df_avg.to_csv(opath_averaged_csv)
 
 
 
-#%% Cell 3: Create map plot - ∆B or ∆V
+
+
+#%% Cell 2c: map plot - prepare volume evolution
+
+#tracker 
+regions = [13, 14, 15]
+subregions = [9, 3, 3]
+
+region_data = []
+members_averages = [2, 3,  3,  5, 1]
 models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM"]#, "IPSL-CM6"]
+
+        
+# Storage for time series
+subregion_series = {}  # subregion → DataArray[time, member]
+global_series = []     # total average over all subregions per member
+members_all = []       # (model, member_id) pairs to track 14-member average
+
+for m, model in enumerate(models_shortlist):
+    for j in range(members_averages[m]):
+        member_id = f"{model}.00{j + 1}" if members_averages[m] > 1 else f"{model}.000"
+        sample_id = member_id  # used in filename
+
+        # Open NetCDF file
+        path = os.path.join(sum_dir, f'climate_run_output_perturbed_{sample_id}.nc')
+        ds = xr.open_dataset(path, engine="h5netcdf")
+        members_all.append(member_id)
+
+        # Per subregion
+        for reg, region in enumerate(regions):
+            for sub in range(subregions[reg]):
+                region_id = f"{region}-0{sub+1}"
+
+                subregion_ds = master_ds_avg[
+                    master_ds_avg['rgi_subregion'].str.contains(region_id)
+                ]
+
+                if subregion_ds.empty:
+                    continue
+
+                # Filter data
+                ds_filtered = ds.where(
+                    ds['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
+
+                # Sum volume over glaciers in this subregion
+                vol_timeseries = ds_filtered["volume"].sum(dim="rgi_id")  # dims: time
+
+                key = region_id
+                if key not in subregion_series:
+                    subregion_series[key] = []
+
+                subregion_series[key].append(vol_timeseries.assign_coords(member=member_id))
+
+        # Add global average (sum over all glaciers, no filter)
+        global_total = ds["volume"].sum(dim="rgi_id")  # dims: time
+        global_series.append(global_total.assign_coords(member=member_id))
+
+# ---------------------------------------
+#  Convert per-subregion data to Dataset
+subregion_datasets = {}
+for region_id, series_list in subregion_series.items():
+    da = xr.concat(series_list, dim="member")
+    da = da.transpose("time", "member")
+    da_avg = da.mean(dim="member").assign_coords(member="14-member-avg")
+    da_full = xr.concat([da, da_avg.expand_dims(dim="member")], dim="member")
+    subregion_datasets[region_id] = da_full
+
+# Merge all subregions into one dataset with region_id as a new dimension
+ds_subregions = xr.concat(
+    [ds.expand_dims(subregion=[key]) for key, ds in subregion_datasets.items()],
+    dim="subregion"
+)
+
+# ---------------------------------------
+# Create global average dataset
+global_all = xr.concat(global_series, dim="member").transpose("time", "member")
+global_avg = global_all.mean(dim="member").assign_coords(member="14-member-avg")
+global_full = xr.concat([global_all, global_avg.expand_dims(dim="member")], dim="member")
+
+# ---------------------------------------
+# Now you have:
+# - ds_subregions: [time, member, subregion]
+# - global_full:   [time, member]
+
+# You can save them if needed:
+ds_subregions.to_netcdf(f"{wd_path}masters/master_volume_ts_subregions_members.nc")
+global_full.to_netcdf(f"{wd_path}masters/master_volume_ts_global_members.nc")
+
+
+#%% Cell 3: Create map plot - ∆B or ∆V
+
+members_averages = [2, 3,  3,  5, 1]
+models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM"]#, "IPSL-CM6"]
+
 
 """ Load data"""
 aggregated_ds = pd.read_csv(
@@ -301,10 +405,11 @@ gdf_volume = gpd.GeoDataFrame(aggregated_ds_vol, geometry=gpd.points_from_xy(
 fig, ax = plt.subplots(figsize=(15,12), subplot_kw={
                        'projection': ccrs.PlateCarree()})
 dem_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/02. DEM/ETOPO2v2c_f4.nc"
-ds = xr.open_dataset(dem_path)
+with xr.open_dataset(dem_path) as ds:
+    dem=ds['z']
 
 # Print dataset info to find variable names
-dem=ds['z']
+
 dem = dem.where((dem.x >= 54.5) & (dem.x <= 115) & (dem.y >= 16) & (dem.y <= 55), drop=True)
 dx =(dem['x'][1]-dem['x'][0]).values
 dy =(dem['y'][1]-dem['y'][0]).values
@@ -326,13 +431,7 @@ im = ax.imshow(ls.hillshade(z, vert_exag=10, dx=0.01, dy=0.01),extent=[dem.x.min
 ax.add_feature(cfeature.RIVERS, edgecolor='blue', facecolor='none', linewidth=0.6, alpha=0.6)
 
 """Set up plot incl shapefile"""
-# Plot setup and plot shapefile
 
-# ax.set_extent([80, 107, 23, 48], crs=ccrs.PlateCarree())
-# # Load shapefiles
-# shapefile_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/03. Shapefile/Karakoram/Pan-Tibetan Highlands/Pan-Tibetan Highlands (Liu et al._2022)/Shapefile/Pan-Tibetan Highlands (Liu et al._2022)_P.shp'
-# shp = gpd.read_file(shapefile_path).to_crs('EPSG:4326')
-# shp.plot(ax=ax, edgecolor='k', linewidth=2, facecolor='none')
 
 subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected_clipped.shp"
 subregions = gpd.read_file(subregions_path).to_crs('EPSG:4326')
@@ -346,8 +445,6 @@ gl.ylines = False  # Remove latitude lines
 
 
 """ Plot subregions"""
-# centroids = subregions.geometry.centroid
-#
 # define movements for the annotation of subregions
 movements = {
     '13-01': [0, -0.2], #A
@@ -381,17 +478,26 @@ scatter_data = "B"
 
 # Define vmin and vmax for the color scale (asymmetric)
 vmin, vmax = -0.2, 0.7  # Asymmetric range
-start =(abs(vmin)/(vmax-vmin))+0.14
+start =(abs(vmin)/(vmax-vmin))
 #Trim cmap so that white is at 0
+n_colors=256
+half=n_colors//2
 original_cmap = plt.cm.bwr.reversed()  # Blue-White-Red colormap
-custom_cmap = clrs.LinearSegmentedColormap.from_list(
-    "trimmed_rwb", original_cmap(np.linspace(start, 1, 256))  # Trims first 20% of the colors
-)
-# Ensure white is at 0 without forcing symmetry
-norm = clrs.Normalize(vmin=vmin,vmax=vmax)
+
+colors_trimmed = [
+    (0.0, "#fdc1c5"),   # lighter red at -0.2
+    (0.222, "white"),   # white at 0.0 → (0 - (-0.2)) / (0.7 - (-0.2)) = ~0.222
+    (1.0, "#0203e2")    # dark blue at 0.7
+]
+
+# Create custom colormap
+custom_cmap = LinearSegmentedColormap.from_list("custom_trimmed_rwb", colors_trimmed, N=256)
+
+# Normalize to match data range
+norm = Normalize(vmin=-0.2, vmax=0.7)
 
 # Create the colorbar
-cbar = plt.colorbar(plt.cm.ScalarMappable(cmap=custom_cmap, norm=norm),
+cbar = plt.colorbar(plt.cm.ScalarMappable(norm=norm,cmap=custom_cmap ),
                     cax=cax, orientation="vertical")
 
 # Define **evenly spaced** tick positions
@@ -410,10 +516,14 @@ cbar.set_label('∆B$_{Irr}$ \nm yr$^{-1}$', fontsize=18, ha='left', rotation=0,
 cbar.ax.yaxis.label.set_position((1.1, 1.4))  # (X, Y) - Adjust Y to move up
 cbar.ax.yaxis.set_label_position('left')
 
+gdf["marker_size"]=(np.sqrt(gdf['rgi_area_km2'])*5)**1.3
 scatter = ax.scatter(gdf.geometry.x, gdf.geometry.y,
-                     s=(np.sqrt(gdf['rgi_area_km2'])*5)**1.3, c=gdf['B_delta_irr'], cmap=custom_cmap, norm=norm, edgecolor='k', alpha=1)
+                     s=gdf['marker_size'], c=gdf['B_delta_irr'], cmap=custom_cmap, norm=norm, edgecolor='k', alpha=0.8)
 
 #plot subregion lines
+
+
+
 for attribute, subregion in subregions.groupby('o2region'):
    
 # Uncomment for coloring of specific subregions
@@ -453,15 +563,8 @@ legend = cax_legend.legend(
     # handler_map={tuple: HandlerTuple(ndivide=None)}, labelspacing=0.3, columnspacing=1, handletextpad=0.3)
 
 # Adjust legend marker positions (stacked effect)
-# for i, handle in enumerate(legend.legendHandles):
-#     handle.set_sizes([custom_sizes[i] * 0.1])  # Adjust scaling if needed
 
-# for i, text in enumerate(legend.get_texts()):
-#     text.set_y(text.get_position()[1] -60)
-#     text.set_x(text.get_position()[0] -90)    
-    
-# legend.get_title().set_position((0,-120))
-# legend.get_title().set_fontweight("bold")
+"""Comment from here to remove all panels"""
 
 """ Add call out plots for the different regions"""
 # Define and iterate over grid layout
@@ -488,15 +591,18 @@ y_min, y_max = start_y, start_y - (h + h_space) * nr_rows - y_buffer
 
 subregion_ids = list(string.ascii_uppercase)  
 i=0
-print(subregion_ids)  
+# print(subregion_ids)  
+
+ds_subregions = xr.open_dataset(f"{wd_path}masters/master_volume_ts_subregions_members.nc")
+global_full = xr.open_dataset(f"{wd_path}masters/master_volume_ts_global_members.nc")
+
 for idx, pos in enumerate(grid_positions):
     if pos:
         subregion_id=subregion_ids[i]
         i+=1
-        ax_callout = fig.add_axes(pos, ylim=(-30,15),facecolor='whitesmoke')#'#E9E9E9'whitesmoke
+        ax_callout = fig.add_axes(pos, ylim=(-30,15),facecolor='white')#'#E9E9E9'whitesmoke
     
         region_id = layout[idx // nr_cols][idx % nr_cols] #index columns and rows, // is rounded by full nrs
-        print(region_id)
         
         
         # Find the corresponding subregion to add axes
@@ -511,17 +617,18 @@ for idx, pos in enumerate(grid_positions):
         baseline_path = os.path.join(
             wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
         baseline = xr.open_dataset(baseline_path)
-        # Check if there are any matching rgi_id values
-        # Ensure that rgi_id values exist in both datasets
         rgi_ids_in_baseline = baseline['rgi_id'].values
         matching_rgi_ids = np.intersect1d(
             rgi_ids_in_baseline, subregion_ds.rgi_id.values)
         baseline_filtered = baseline.sel(rgi_id=matching_rgi_ids)
+        # Check if there are any matching rgi_id values
+        # Ensure that rgi_id values exist in both datasets
+        
         initial_volume = baseline_filtered['volume'].sum(dim="rgi_id")[0].values
 
         # Plot model member data
         ax_callout.plot(baseline_filtered["time"].values, baseline_filtered['volume'].sum(dim="rgi_id")/initial_volume*100-100,
-                        label="W5E5.000", color=colors['cf'][0], linewidth=2, zorder=15)
+                        label="W5E5.000", color=colors['irr'][0], linewidth=3, zorder=15)
         filtered_member_data = []
         
         
@@ -530,27 +637,31 @@ for idx, pos in enumerate(grid_positions):
         for m, model in enumerate(models_shortlist):
             for j in range(members_averages[m]):
                 sample_id = f"{model}.00{j + 1}" if members_averages[m] > 1 else f"{model}.000"
-                climate_run_output = xr.open_dataset(os.path.join(
-                    sum_dir, f'climate_run_output_perturbed_{sample_id}.nc'))
-                climate_run_output = climate_run_output.where(
-                    climate_run_output['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
-                
+                # with xr.open_dataset(os.path.join(
+                #     sum_dir, f'climate_run_output_perturbed_{sample_id}.nc')) as climate_run_output:
+                #     climate_run_output = climate_run_output.where(
+                #         climate_run_output['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
+                climate_run_output = ds_subregions.sel(member=sample_id).sel(subregion=region_id) 
+                # ax_callout.plot(climate_run_output["time"].values, climate_run_output["volume"]/initial_volume*100-100, label=sample_id, color="grey", linewidth=1, linestyle="dotted")
                 # ax_callout.plot(climate_run_output["time"].values, climate_run_output["volume"].sum(
                 #     dim="rgi_id")/initial_volume*100-100, label=sample_id, color="grey", linewidth=1, linestyle="dotted")
-                filtered_member_data.append(
-                    climate_run_output["volume"].sum(dim="rgi_id").values/initial_volume*100-100)
+                # filtered_member_data.append(
+                #     climate_run_output["volume"].sum(dim="rgi_id").values/initial_volume*100-100)
+                
 
         # Mean and range plotting
-        mean_values = np.mean(filtered_member_data, axis=0).flatten()
-        min_values = np.min(filtered_member_data, axis=0).flatten()
-        max_values = np.max(filtered_member_data, axis=0).flatten()
+        mean_values = ds_subregions.sel(subregion=region_id).sel(member='14-member-avg').volume.values/initial_volume*100-100 #np.mean(filtered_member_data, axis=0).flatten()
+        min_values = ds_subregions.sel(subregion=region_id).min(dim="member").volume.values/initial_volume*100-100 #np.min(filtered_member_data, axis=0).flatten()
+        max_values = ds_subregions.sel(subregion=region_id).max(dim="member").volume.values/initial_volume*100-100# np.max(filtered_member_data, axis=0).flatten()
+        std_values = ((ds_subregions.sel(subregion=region_id).volume / initial_volume) * 100 - 100).std(dim="member").values
         ax_callout.plot(climate_run_output["time"].values, mean_values,
-                        color=colors['noirr'][0], linestyle='solid', lw=2, label=f"{sum(members_averages)}-member average")
-        ax_callout.fill_between(
-            climate_run_output["time"].values, min_values, max_values, color=colors['noirr'][1], alpha=0.3)#color="lightblue", alpha=0.3)
+                        color=colors['noirr'][0], linestyle='dashed', lw=3, label=f"{sum(members_averages)}-member average")
+        # ax_callout.fill_between(
+        #     climate_run_output["time"].values, min_values, max_values, color=colors['noirr'][1], alpha=0.3)#color="lightblue", alpha=0.3)
+        ax_callout.fill_between(climate_run_output["time"].values, (mean_values-std_values), (mean_values+std_values), color=colors['noirr'][1], alpha=0.3, label=r"Historical NoIrr 1$\sigma$" )
         ax_callout.plot(climate_run_output["time"].values, np.ones(len(climate_run_output["time"]))*100-100, color="black", linewidth=1, linestyle="dashed")
 
-        # # Subplot formatting
+        # Subplot formatting
         if region_id=="13-02":
             subregion_title ="Pamir"
         elif region_id=="13-04":
@@ -583,9 +694,6 @@ for idx, pos in enumerate(grid_positions):
                 horizontalalignment='center', fontsize=18, color='black', fontweight='bold')
        
         
-        # ax_callout.set_xlim(-3, 3)
-        # ax_callout.set_ylim(0, 20)
-        # if idx < len(grid_positions) - nr_cols:
         ax_callout.tick_params(axis='x', labelbottom=False)
         if idx % nr_cols != 0:
             ax_callout.tick_params(axis='y', labelleft=False)
@@ -595,12 +703,12 @@ for idx, pos in enumerate(grid_positions):
         callout_x, callout_y, callout_w, callout_h = pos
 
 # Create a new figure for the\small legend plot
-fig_legend = fig.add_axes([start_x, 0.069, w*2.1, h*2.2], ylim=(-8,3), facecolor="whitesmoke")##e9e9e9")  # make twice as large as the callout plots #w*2.4, h*2.15
+fig_legend = fig.add_axes([start_x, 0.069, w*2.1, h*2.2], ylim=(-8,3), facecolor="white")##e9e9e9")  # make twice as large as the callout plots #w*2.4, h*2.15
 total_initial_volume = baseline['volume'].sum(dim="rgi_id")[0].values
 vol_display="relative"
 
 fig_legend.plot(baseline["time"].values, baseline['volume'].sum(dim="rgi_id")/total_initial_volume*100-100,
-                label="Historical, W5E5", color= colors['cf'][0], linewidth=2, zorder=15)
+                label="Historical, W5E5", color= colors['irr'][0], linewidth=3, zorder=15)
 member_data = []
 
 
@@ -613,21 +721,24 @@ for m, model in enumerate(models_shortlist):
         else:
             legendlabel = '_nolegend_'
         sample_id = f"{model}.00{j + 1}" if members_averages[m] > 1 else f"{model}.000"
-        climate_run_output = xr.open_dataset(os.path.join(
-            sum_dir, f'climate_run_output_perturbed_{sample_id}.nc'))
-        fig_legend.plot(climate_run_output["time"].values, climate_run_output["volume"].sum(
-            dim="rgi_id")/total_initial_volume*100-100, label=legendlabel, color=colors['noirr'][0], linewidth=2, linestyle="dotted")
-        member_data.append(
-            climate_run_output["volume"].sum(dim="rgi_id").values/total_initial_volume*100-100)
+        # with xr.open_dataset(os.path.join(
+        #     sum_dir, f'climate_run_output_perturbed_{sample_id}.nc')) as climate_run_output:
+        climate_run_output = global_full.sel(member=sample_id)
+        fig_legend.plot(climate_run_output["time"].values, climate_run_output["volume"]/total_initial_volume*100-100, label=legendlabel, color=colors['noirr'][0], linewidth=1, linestyle="dotted")
+            # fig_legend.plot(climate_run_output["time"].values, climate_run_output["volume"].sum(
+            #     dim="rgi_id")/total_initial_volume*100-100, label=legendlabel, color=colors['noirr'][0], linewidth=2, linestyle="dotted")
+        # member_data.append(
+        #     climate_run_output["volume"].sum(dim="rgi_id").values/total_initial_volume*100-100)
 
 # Mean and range plotting
-mean_values = np.mean(member_data, axis=0).flatten()
-min_values = np.min(member_data, axis=0).flatten()
-max_values = np.max(member_data, axis=0).flatten()
-std_values = np.std(member_data, axis=0).flatten()  # Replace min with std
+mean_values = global_full.sel(member='14-member-avg').volume.values/total_initial_volume*100-100 #np.mean(member_data, axis=0).flatten()
+min_values = global_full.volume.min(dim='member').values/total_initial_volume*100-100 #np.min(member_data, axis=0).flatten()
+max_values = global_full.volume.max(dim='member').values/total_initial_volume*100-100 #np.max(member_data, axis=0).flatten()
+std_values = ((global_full.volume / global_full.volume.isel(time=0)) * 100 - 100).std(dim="member").values
+# std_values = global_full.volume.std(dim='member').values #np.std(member_data, axis=0).flatten()  # Replace min with std
 
 fig_legend.plot(climate_run_output["time"].values, mean_values,
-                color=colors['noirr'][0], linestyle='solid', lw=2, label=f"Historical NoIrr avg.")
+                color=colors['noirr'][0], linestyle='dashed', lw=3, label=f"Historical NoIrr avg.")
 fig_legend.fill_between(climate_run_output["time"].values, (mean_values-std_values), (mean_values+std_values), color=colors['noirr'][1], alpha=0.3, label=r"Historical NoIrr 1$\sigma$" )
 fig_legend.plot(climate_run_output["time"].values, np.zeros(len(climate_run_output["time"])), color="k", linewidth=1, linestyle="dashed")
 
@@ -640,7 +751,7 @@ fig_legend.text(0.05, 0.05, f'#:{total_nr}, V:{total_volume} km$^3$', transform=
 handles, labels = fig_legend.get_legend_handles_labels()
 
 # Define the custom order (indices correspond to handles/labels order)
-custom_order = [0,2,1]#[0,3,2,1]  # Example: Rearrange items by index
+custom_order = [0,3,2,1]#[0,1,2]#,1]#[0,3,2,1]  # Example: Rearrange items by index
 
 # Apply the custom order
 fig_legend.legend([handles[i] for i in custom_order], 
@@ -656,16 +767,12 @@ fig_legend.xaxis.set_tick_params(labelsize=18)
 fig_legend.yaxis.set_tick_params(labelsize=18)
 
 # Remove tick marks but keep the tick labels
-# fig_legend.tick_params(axis='both', which='major', length=0)
-# fig_legend.set_xticklabels([])  # Removes x-axis tick labels
-# fig_legend.set_yticklabels([])  # Removes y-axis tick labels
-
-
 fig.tight_layout()
-fig_folder = os.path.join(fig_path, "04. Map")
+fig_folder = os.path.join(fig_path)#, "04. Map"
 os.makedirs(fig_folder, exist_ok=True)
-plt.savefig(f"{fig_folder}/Map_Plot_sA_c{scatter_data}_boxV_IRR_2000_2014.png", dpi=300, bbox_inches="tight", pad_inches=0.1)
+plt.savefig(f"{fig_folder}/Map_Plot_sA_c{scatter_data}_boxV_IRR_2000_2014_nopanels.png", dpi=300, bbox_inches="tight", pad_inches=0.1)
 
+# plt.savefig(f"{fig_folder}/Map_Plot_sA_c{scatter_data}_boxV_IRR_2000_2014.png", dpi=300, bbox_inches="tight", pad_inches=0.1)
 
 
 plt.show()
@@ -724,7 +831,7 @@ for m, model in enumerate(models):
 
 
 unique_rgi_ids = overview_df['rgi_id'].unique()
-print(len(unique_rgi_ids))
+# print(len(unique_rgi_ids))
 unique_rgi_ids = pd.DataFrame(unique_rgi_ids, columns=['rgi_ids'])
 unique_rgi_ids.to_csv(os.path.join(
     wd_path, 'masters', 'nan_mask_comitted_random.csv'))
@@ -744,7 +851,7 @@ subregions = [9, 3, 3]
 fig, ax = plt.subplots(figsize=(15,10))  # create a new figure
 
 members_averages = [2, 3,  3,  6, 1]
-models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM"]#, "IPSL-CM6"]
+models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM", "IPSL-CM6"]
 
 # define the variables for p;lotting
 factors = [10**-9]
@@ -755,7 +862,7 @@ use_multiprocessing = False
 
 rgi_ids_test=[]
 subset_gdirs = gdirs_3r_a5
-for gdir in subset_gdirs[:100]:
+for gdir in subset_gdirs:
      rgi_ids_test.append(gdir.rgi_id)
      
  #Exclude error ids
@@ -768,7 +875,7 @@ rgi_ids_test = [rgi_id for rgi_id in rgi_ids_test if rgi_id not in nan_mask]
 aggregated_ds_total = pd.read_csv(
     f"{wd_path}masters/master_lon_lat_rgi_id.csv") #load dataset - needed to filter rgi_ids per region    
 aggregated_ds = aggregated_ds_total[aggregated_ds_total['rgi_id'].isin(rgi_ids_test)]
-plt.rcParams.update({'font.size': 12})
+plt.rcParams.update({'font.size': 14})
 
 #create a figure consisting of 1 large plot and several smaller ones for every subregion
 fig = plt.figure(figsize=(15,8))
@@ -930,6 +1037,7 @@ for f, filepath in enumerate(["climate_run_output_baseline_W5E5.000.nc", f"clima
                 subregion_title ="East Kun Lun"
             else:
                 subregion_title=subregion_name
+            print(region_id, subregion_title)
             
             axes_dict[region_id].set_title(subregion_title, fontweight="bold", bbox=dict(
                 facecolor='white', edgecolor='none', pad=1), fontsize=14)
@@ -957,6 +1065,8 @@ for f, filepath in enumerate(["climate_run_output_baseline_W5E5.000.nc", f"clima
     handles, labels = ax_big.get_legend_handles_labels()
     ax_big.legend(handles, labels,
                ncol=2)
+
+    
     
 plt.tight_layout()
 plt.subplots_adjust(hspace=0.4, wspace=0.2)
@@ -971,9 +1081,9 @@ plt.savefig(o_file_name, bbox_inches='tight')
 plt.show()
 
         
- #%% Cell 4c: Comitted mass loss bocplots
+ #%% Cell 4c: Comitted mass loss boxplots
 # Function to plot the boxplots
-def plot_boxplot(data, position, label, color, alpha, is_noirr):
+def plot_boxplot(data, position, label, color, alpha, is_noirr, ax):
     bp = ax.boxplot(data, patch_artist=True, labels=[""],#label if is_noirr else [""],  # only set labels for Noirr
                     vert=True, widths=0.3,
                     boxprops=dict(facecolor=color, alpha=alpha,
@@ -995,7 +1105,7 @@ def plot_boxplot(data, position, label, color, alpha, is_noirr):
             spine.set_linewidth(2)
         fontweight="bold"
     if is_noirr:
-        ax.set_xlabel(label[0], rotation=90, fontweight=fontweight, fontsize=12)
+        ax.set_xlabel(label[0], rotation=30, fontweight=fontweight, fontsize=12)
 
     median_value = bp['medians'][0].get_xdata()[0]
     ax.set_ylim(-100, 140)
@@ -1030,6 +1140,7 @@ master_ds = master_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'ce
                        'V_2264_irr','V_2264_noirr','V_2014_irr','V_2014_noirr', 'V_1985_irr']]
 
 
+
 master_ds_avg = master_ds.groupby(['rgi_id'], as_index=False).agg({  # calculate the 11 member average for noirr and delta, for irr the first value can be taken as they are all the same
     'V_2264_noirr': 'mean',
     'V_2264_irr': 'mean',
@@ -1060,10 +1171,10 @@ master_ds_avg=master_ds_avg[master_ds_avg['V_2264_irr'].notna()]
 master_ds_area_weighted=master_ds_area_weighted[master_ds_area_weighted['V_2264_irr'].notna()]
 
 use_weights = True
-v_space_noi2 = 1.6  # Vertical space between irr and noirr boxplots
-v_space_irr2 = 0.8  # Vertical space between irr and noirr boxplots
-v_space_noi1 = 1.2  # Vertical space between irr and noirr boxplots
-v_space_irr1 = 0.4  # Vertical space between irr and noirr boxplots
+v_space_noi2 = 1.9  # Vertical space between irr and noirr boxplots
+v_space_irr2 = 1.5  # Vertical space between irr and noirr boxplots
+v_space_noi1 = 0.5  # Vertical space between irr and noirr boxplots
+v_space_irr1 = 0.1  # Vertical space between irr and noirr boxplots
 
 # Storage for combined data
 all_noirr, all_irr = [], []
@@ -1113,13 +1224,13 @@ for r, region in enumerate((regions)):
         # Plot Noirr and Irr boxplots
         
         box_irr = plot_boxplot(
-            subregion_ds['V_2014_irr'], position_counter + v_space_irr1, label="", color=colors['cf'][0], alpha=1, is_noirr=False)
+            subregion_ds['V_2014_irr'], position_counter + v_space_irr1, label="", color=colors['irr'][0], alpha=1, is_noirr=False, ax)
         box_irr = plot_boxplot(
-            subregion_ds['V_2264_irr'], position_counter + v_space_irr2, label="", color=colors['cf'][1], alpha=1, is_noirr=False)
+            subregion_ds['V_2264_irr'], position_counter + v_space_irr2, label="", color=colors['irr'][1], alpha=1, is_noirr=False, ax)
         box_noirr = plot_boxplot(
-            subregion_ds['V_2014_noirr'], position_counter + v_space_noi1, label, color=colors['noirr'][0], alpha=1, is_noirr=True)
+            subregion_ds['V_2014_noirr'], position_counter + v_space_noi1, label, color=colors['noirr'][0], alpha=1, is_noirr=True, ax)
         box_noirr = plot_boxplot(
-            subregion_ds['V_2264_noirr'], position_counter + v_space_noi2, label, color=colors['noirr'][1], alpha=1, is_noirr=True)
+            subregion_ds['V_2264_noirr'], position_counter + v_space_noi2, label, color=colors['noirr'][1], alpha=1, is_noirr=True, ax)
 
         
         # Annotate the number of glaciers and delta between the two columns
@@ -1154,13 +1265,13 @@ ax = axes[p]
 
 
 avg_irr = plot_boxplot(master_ds_avg['V_2014_irr'],  position_counter +
-                       v_space_irr1, "", color=colors['cf'][0], alpha=1, is_noirr=False)
+                       v_space_irr1, "", color=colors['irr'][0], alpha=1, is_noirr=False, ax)
 avg_irr = plot_boxplot(master_ds_avg['V_2264_irr'],  position_counter +
-                       v_space_irr2, "", color=colors['cf'][1], alpha=1, is_noirr=False)
+                       v_space_irr2, "", color=colors['irr'][1], alpha=1, is_noirr=False, ax)
 avg_noi = plot_boxplot(master_ds_avg['V_2014_noirr'], position_counter + v_space_noi1, [
-    "High Mountain Asia"], color=colors['noirr'][0], alpha=1, is_noirr=True)
+    "High Mountain Asia"], color=colors['noirr'][0], alpha=1, is_noirr=True, ax)
 avg_noi = plot_boxplot(master_ds_avg['V_2264_noirr'], position_counter + v_space_noi2, [
-    "High Mountain Asia"], color=colors['noirr'][1], alpha=1, is_noirr=True)
+    "High Mountain Asia"], color=colors['noirr'][1], alpha=1, is_noirr=True, ax)
 
 
 initial_total_volume = round(overall_area_weighted_mean['V_1985_irr']*1e-9)
@@ -1176,24 +1287,24 @@ ax.text(1.1, 120,
 # Create custom legend elements for mean (dot) and median (stripe)
 mean_dot = Line2D([0], [0], marker='o', color='w',
                   label='Area-weighted Mean (dot)', markerfacecolor='black', markersize=10)
-median_stripe = Line2D([0], [0], color='black', lw=2, label='Median (stripe)')
+# median_stripe = Line2D([0], [0], color='black', lw=2, label='Median (stripe)')
 
 # Add a legend for regions, mean (dot), and median (stripe)
-region_legend_patches = [mpatches.Patch(color=colors['cf'][0], label='Historical, W5E5'),
-                         mpatches.Patch(color=colors['cf'][1], label='Historical, comitted'),
+region_legend_patches = [mpatches.Patch(color=colors['irr'][0], label='Historical (W5E5)'),
                          mpatches.Patch(color=colors['noirr'][0], label='Historical NoIrr'),
-                         mpatches.Patch(color=colors['noirr'][1], label='Historical NoIrr, comitted'),
+                         mpatches.Patch(color=colors['irr'][1], label='Comitted (historical)'),
+                         mpatches.Patch(color=colors['noirr'][1], label='Comitted (Historical NoIrr)'),
                          ]
 
 # Append the custom legend items for the mean dot and median stripe
-region_legend_patches += [median_stripe]
+# region_legend_patches += [median_stripe]
 
 # Create the legend with the updated patches
 # fig.legend(handles=region_legend_patches, loc='center right',
 #            bbox_to_anchor=(1.15, 0.6), ncols=1)
-fig.legend(handles=region_legend_patches, loc='lower center',
-          bbox_to_anchor=(0.5, -0.05), ncols=5, fontsize=12)
-
+fig.legend(handles=region_legend_patches, loc='upper right',
+          bbox_to_anchor=(1, 1.05), ncols=5, fontsize=12)
+# fig.subplots_adjust(right=0.97)
 
 
 
@@ -1204,38 +1315,63 @@ fig.legend(handles=region_legend_patches, loc='lower center',
 
 # Adjust layout and display the plot
 plt.tight_layout()
-fig_folder = os.path.join(fig_path, "03. Mass Balance", "Boxplot")
+# fig_folder = os.path.join(fig_path, "03. Mass Balance", "Boxplot")
 # os.makedirs(fig_folder, exist_ok=True)
 # plt.savefig(
 #     f"{fig_folder}/Gaussian_distribution_total_region_by_region_median.png")
 plt.show()           
 
- #%% OUTDATED BOXPLOT
+    
+    
+#%% Cell 4d: Comitted mass loss boxplots totals
 # Function to plot the boxplots
+ylim=50
+y = ylim-10
+x=1.3
 def plot_boxplot(data, position, label, color, alpha, is_noirr):
-    bp = ax.boxplot(data, patch_artist=True, labels=label if is_noirr else [""],  # only set labels for Noirr
-                    vert=False, widths=0.7,
+    bp = ax.boxplot(data, patch_artist=True, labels=[""],#label if is_noirr else [""],  # only set labels for Noirr
+                    vert=True, widths=0.7,
                     boxprops=dict(facecolor=color, alpha=alpha,
                                   edgecolor='none'),
                     medianprops=dict(color='black', linewidth=2),
                     positions=[position], showfliers=False, zorder=2)
+    
 
     # Get the median value from the boxplot
+    ax.axhline(y=0, color='black', linestyle='--', linewidth=1, zorder=0)
+    ax.tick_params(labelsize=10)
+    if p>0:
+        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+        fontweight="medium"
+    else: 
+        ax.set_ylabel('Volume change (%, vs. 1985 historic)', labelpad=15, fontsize=12)
+        ax.tick_params(left=True, bottom=False, labelleft=True, labelbottom=False, labelsize=12)
+        for spine in ax.spines.values():
+            spine.set_linewidth(2)
+        fontweight="bold"
+    if is_noirr and label == ["High Mountain Asia"]:
+        ax.set_xlabel("High \n Mountain \n Asia", rotation=0, fontweight=fontweight, fontsize=12, labelpad = 10 )
+    elif is_noirr:
+        ax.set_xlabel(label[0], rotation=30, fontweight=fontweight, fontsize=12)
+
+
     median_value = bp['medians'][0].get_xdata()[0]
+    ax.set_ylim(-80, ylim)
 
-    ax.text(median_value + 10, position, f'{median_value:.1f}',  # Place above for Irr
-            va='center', ha='center', fontsize=10, color='black', #fontweight='bold',
-            # bbox=dict(boxstyle='round,pad=0.001',
-            #           facecolor='white', edgecolor='none'),
-            zorder=3)
-    ax.set_ylim(-100, 140)
 
+    # ax.text(median_value + 10, position, f'{median_value:.1f}',  # Place above for Irr
+    #         va='center', ha='center', fontsize=10, color='black', #fontweight='bold',
+    #         # bbox=dict(boxstyle='round,pad=0.001',
+    #         #           facecolor='white', edgecolor='none'),
+    #         zorder=3)
 
     return bp
 
 
-# Initialize plot
-fig, ax = plt.subplots(figsize=(9, 9))
+
+
+regions = [13, 14, 15]
+subregions = [9, 3, 3]
 
 df = pd.read_csv(
     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv")
@@ -1243,65 +1379,69 @@ df = pd.read_csv(
 master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model averages ending with 0 except for IPSL
                (df['sample_id'].str.startswith('IPSL'))]
 
-master_ds['V_2264_noirr'] = (master_ds['V_2264_noirr']-master_ds['V_1985_irr'])/master_ds['V_1985_irr']*100
-master_ds['V_2264_irr'] = (master_ds['V_2264_irr']-master_ds['V_1985_irr'])/master_ds['V_1985_irr']*100
-master_ds = master_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
-                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 
-                       'V_2264_irr','V_2264_noirr', 'V_1985_irr']]
-
-
-master_ds_avg = master_ds.groupby(['rgi_id'], as_index=False).agg({  # calculate the 11 member average for noirr and delta, for irr the first value can be taken as they are all the same
-    'V_2264_noirr': 'mean',
-    'V_2264_irr': 'mean',
+master_ds_tot_vol = master_ds.groupby(['rgi_subregion', 'sample_id'], as_index=False).agg({  # calculate the 14 member average for noirr and delta, for irr the first value can be taken as they are all the same
+    'V_2264_noirr': 'sum',
+    'V_2264_irr': 'sum',
+    'V_2014_noirr': 'sum',
+    'V_2014_irr': 'sum',
+    'V_1985_irr': 'sum',
+    'rgi_id': lambda _: "regional total",
     # lamda is anonmous functions, returns 11 member average
-    'sample_id': lambda _: "11 member average",
     # take first value for all columns that are not in the list
-    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_noirr', 'V_2264_irr', 'sample_id']}
+    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_noirr', 'V_2264_irr','V_2014_noirr', 'V_2014_irr','V_1985_irr', 'sample_id', 'rgi_id']} #take first for rgi_id, rgi_region, full_name, cenlon, cenlat, rgi_date, rgi_areakm2
 })
 
+master_ds_tot_vol['V_2264_noirr_delta'] = ((master_ds_tot_vol['V_2264_noirr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr'])*100
+master_ds_tot_vol['V_2264_irr_delta'] = (master_ds_tot_vol['V_2264_irr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol['V_2014_noirr_delta'] = (master_ds_tot_vol['V_2014_noirr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol['V_2014_irr_delta'] = (master_ds_tot_vol['V_2014_irr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol = master_ds_tot_vol[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 
+                       'V_2264_irr','V_2264_noirr','V_2014_irr','V_2014_noirr', 'V_1985_irr','V_2264_irr_delta','V_2264_noirr_delta','V_2014_irr_delta','V_2014_noirr_delta']]
 
-# Aggregate dataset, area-weighted BDelta Birr and Bnoirr,
-master_ds_area_weighted = master_ds_avg.groupby(['rgi_subregion'], as_index=False).agg({
-    'V_2264_noirr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
-    'V_2264_irr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
-    'rgi_area_km2': 'sum',  # Sum for area
-    'rgi_volume_km3': 'sum',  # Sum for volume
-    'V_1985_irr': 'sum',  # Sum for volume
-    # 'sample_id': lambda _: "11 member average",
-    # take first value for all columns that are not in the list
-    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_irr', 'V_2264_noirr','V_1985_irr','rgi_area_km2', 'rgi_volume_km3']}
-})
 
-master_ds_avg=master_ds_avg[master_ds_avg['V_2264_irr'].notna()]
-master_ds_area_weighted=master_ds_area_weighted[master_ds_area_weighted['V_2264_irr'].notna()]
+master_ds = master_ds[master_ds['V_2264_irr'].notna()]
+master_ds_tot_vol=master_ds_tot_vol[master_ds_tot_vol['V_2264_irr'].notna()]
+# master_ds_area_weighted=master_ds_area_weighted[master_ds_area_weighted['V_2264_irr'].notna()]
 
 use_weights = True
-v_space_noi = 0.8  # Vertical space between irr and noirr boxplots
-v_space_irr = 1.6  # Vertical space between irr and noirr boxplots
+# v_space_noi2 = 1.9  # Vertical space between irr and noirr boxplots
+v_space_com = 1.4  # Vertical space between irr and noirr boxplots
+v_space_hist = 0.6  # Vertical space between irr and noirr boxplots
+# v_space_irr1 = 0.1  # Vertical space between irr and noirr boxplots
 
 # Storage for combined data
 all_noirr, all_irr = [], []
 position_counter = 1
 
-
 cumulative_index = 14
 
+# Initialize plot
+fig = plt.figure(figsize=(16, 6))
+gs = gridspec.GridSpec(1, 16, width_ratios=[1.5] + [1]*15)  # First axis twice as wide
 
-p=0
+axes = [fig.add_subplot(gs[i]) for i in range(16)]
+# fig, axes = plt.subplots(1,16, figsize=(15, 6), sharey=True)
+print(axes)
+# axes = axes.flatten()
+p=1
+
 # Example usage: Main loop through regions and subregions
-for r, region in enumerate(reversed(regions)):
-    for sub in reversed(range(list(reversed(subregions))[r])):
+for r, region in enumerate((regions)):
+    for sub in range(list((subregions))[r]):
         # Filter subregion-specific data
+        ax = axes[p]
+        print(f"{region}.0{sub+1}")
+       
 
-        subregion_ds = master_ds_avg[master_ds_avg['rgi_subregion'].str.contains(
-            f"{region}.0{sub+1}")]
+        subregion_ds = master_ds_tot_vol[master_ds_tot_vol['rgi_subregion'].str.contains(
+            f"{region}-0{sub+1}")]
 
         # Calculate mean values for Noirr and Irr
-        noirr_mean = master_ds_area_weighted['V_2264_noirr'][cumulative_index]
-        irr_mean = master_ds_area_weighted['V_2264_irr'][cumulative_index]
+        # noirr_mean = master_ds_area_weighted['V_2264_noirr'][cumulative_index]
+        # irr_mean = master_ds_area_weighted['V_2264_irr'][cumulative_index]
 
         # Set color and label based on the region
-        # color = region_colors[region]
         try:
             label = [subregion_ds.full_name.iloc[0]]
         except:
@@ -1315,99 +1455,807 @@ for r, region in enumerate(reversed(regions)):
             elif sub ==5:
                 label = ["East Kun Lun"]
         # Plot Noirr and Irr boxplots
-        box_noirr = plot_boxplot(
-            subregion_ds['V_2264_noirr'], position_counter + v_space_noi, label, color=colors['noirr'][0], alpha=0.5, is_noirr=True)
-        box_irr = plot_boxplot(
-            subregion_ds['V_2264_irr'], position_counter + v_space_irr, label="", color=colors['irr'][0], alpha=0.5, is_noirr=False)
+        print(position_counter)
+        print(subregion_ds['V_2014_irr_delta'].iloc[0])
+        print(subregion_ds['V_2264_irr_delta'].iloc[0])
+        # box_irr = plot_boxplot(
+        #     subregion_ds['V_2014_irr_delta'], position_counter + v_space_hist, label="", color=colors['irr'][0], alpha=1, is_noirr=False)
+        # box_irr = plot_boxplot(
+        #     subregion_ds['V_2264_irr_delta'], position_counter + v_space_com, label="", color=colors['irr'][1], alpha=1, is_noirr=False)
+        
+        
+        mean_hist = subregion_ds['V_2014_noirr_delta'].mean()
 
+        mean_com = subregion_ds['V_2264_noirr_delta'].mean() 
+        box_noirr = plot_boxplot(
+            subregion_ds['V_2014_noirr_delta'], position_counter + v_space_hist, label, color=colors['noirr'][0], alpha=1, is_noirr=True)
+        box_noirr = plot_boxplot( 
+            subregion_ds['V_2264_noirr_delta'], position_counter + v_space_com, label, color=colors['noirr'][1], alpha=1, is_noirr=True)
+        
+        box_irr = ax.scatter([position_counter +
+                               v_space_hist], subregion_ds['V_2014_irr_delta'].iloc[0], color=colors['irr'][0], marker="x", s=100, linewidths=3, zorder=10)
+        box_irr = ax.scatter([position_counter +
+                               v_space_com], subregion_ds['V_2264_irr_delta'].iloc[1], color=colors['irr'][1], marker="x", s=100, linewidths=3, zorder=10)
+        ax.hlines(mean_hist, 
+          xmin=position_counter + v_space_hist - 0.3,  # adjust width
+          xmax=position_counter + v_space_hist + 0.3,
+          linestyles='dashed', 
+          color='black',
+          linewidth=2,
+          zorder=9)
+        
+        ax.hlines(mean_com, 
+          xmin=position_counter + v_space_com - 0.3,  # adjust width
+          xmax=position_counter + v_space_com + 0.3,
+          linestyles='dashed', 
+          color='black',
+          linewidth=2,
+          zorder=9)
+
+        
         # Annotate the number of glaciers and delta between the two columns
-        num_glaciers = len(subregion_ds)
-        delta = noirr_mean - irr_mean
+        num_glaciers = len(master_ds[master_ds.rgi_subregion==f"{region}-0{sub+1}"][master_ds.sample_id=="IPSL-CM6.000"])
+        
+        # delta = noirr_mean - irr_mean
 
         # Display number of glaciers and delta
-        initial_volume = round(sum(subregion_ds['V_1985_irr'].values)*1e-9)
-        plt.text(120, position_counter + (v_space_noi ),
-                 f'{initial_volume} ({num_glaciers})',  # \nΔ = {delta:.2f}',
-                 va='center', ha='left', fontsize=10, color='black',
-                 backgroundcolor="white",  zorder=1)
+        initial_volume = round(subregion_ds['V_1985_irr'].iloc[0]*1e-9)
+        ax.text(x, y, 
+                 f'{initial_volume}\n({num_glaciers})',  # \nΔ = {delta:.2f}',
+                 va='center', ha='left', fontsize=12, color='black',
+                 backgroundcolor="white",  zorder=10)
 
-        # Increment position counter for the next subregion
-        position_counter += 4
-        cumulative_index -= 1
+        p+=1
+        
     
+# # Plot overall average boxplots for Irr and Noirr
+p=0
+ax = axes[p]
 
-overall_area_weighted_mean = {
-    'V_2264_irr': (master_ds_avg['V_2264_irr'] * master_ds_avg['rgi_area_km2']).sum() / master_ds_avg['rgi_area_km2'].sum(),
-    'V_2264_noirr': (master_ds_avg['V_2264_noirr'] * master_ds_avg['rgi_area_km2']).sum() / master_ds_avg['rgi_area_km2'].sum(),
-    'total_area_km2': master_ds_avg['rgi_area_km2'].sum(),  # Total area sum
-    'V_1985_irr': master_ds_avg['V_1985_irr'].sum(),  # Total area sum
-    # Total volume sum
-    'total_volume_km3': master_ds_avg['rgi_volume_km3'].sum()
-}
+master_ds_hma = master_ds.groupby(['sample_id'], as_index=False).agg({  # calculate the 14 member average for noirr and delta, for irr the first value can be taken as they are all the same
+    'V_2264_noirr': 'sum',
+    'V_2264_irr': 'sum',
+    'V_2014_noirr': 'sum',
+    'V_2014_irr': 'sum',
+    'V_1985_irr': 'sum',
+    # 'rgi_id': lambda _: "regional total",
+    # 'rgi_subregion': lambda _: "High Mountain Asia",
+    # 'rgi_region': lambda _: "High Mountain Asia",    # lamda is anonmous functions, returns 11 member average
+    # take first value for all columns that are not in the list
+    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_noirr', 'V_2264_irr','V_2014_noirr', 'V_2014_irr','V_1985_irr']}#,  'rgi_id', 'rgi_subregion','rgi_region']} #take first for rgi_id, rgi_region, full_name, cenlon, cenlat, rgi_date, rgi_areakm2
+})
 
-# Plot overall average boxplots for Irr and Noirr
-avg_noi = plot_boxplot(master_ds_avg['V_2264_noirr'], position_counter + v_space_noi, [
-    "Average"], color=colors['noirr'][1], alpha=1, is_noirr=True)
-avg_irr = plot_boxplot(master_ds_avg['V_2264_irr'],  position_counter +
-                       v_space_irr, "", color=colors['irr'][1], alpha=1, is_noirr=False)
+master_ds_hma['V_2264_noirr_delta'] = ((master_ds_hma['V_2264_noirr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr'])*100
+master_ds_hma['V_2264_irr_delta'] = (master_ds_hma['V_2264_irr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma['V_2014_noirr_delta'] = (master_ds_hma['V_2014_noirr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma['V_2014_irr_delta'] = (master_ds_hma['V_2014_irr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma = master_ds_hma[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 
+                       'V_2264_irr','V_2264_noirr','V_2014_irr','V_2014_noirr', 'V_1985_irr','V_2264_irr_delta','V_2264_noirr_delta','V_2014_irr_delta','V_2014_noirr_delta']]
 
-initial_total_volume = round(overall_area_weighted_mean['V_1985_irr']*1e-9)
+
+# avg_irr = plot_boxplot(master_ds_hma['V_2014_irr_delta'],  position_counter +
+#                        v_space_hist, "", color=colors['irr'][0], alpha=1, is_noirr=False)
+avg_irr = ax.scatter([position_counter +
+                       v_space_hist], master_ds_hma['V_2014_irr_delta'].iloc[0], color=colors['irr'][0], marker="x", s=100, linewidths=3)
+avg_irr = ax.scatter([position_counter +
+                       v_space_com], master_ds_hma['V_2264_irr_delta'].iloc[0], color=colors['irr'][1], marker="x", s=100, linewidths=3)
+avg_noi = plot_boxplot( master_ds_hma['V_2014_noirr_delta'], position_counter + v_space_hist, [
+    "High Mountain Asia"], color=colors['noirr'][0], alpha=1, is_noirr=True)
+avg_noi = plot_boxplot(master_ds_hma['V_2264_noirr_delta'], position_counter + v_space_com, [
+    "High Mountain Asia"], color=colors['noirr'][1], alpha=1, is_noirr=True)
+
+
+initial_total_volume = round(master_ds_hma['V_1985_irr'][0]*1e-9)
 # Annotate the number of glaciers for the overall average
-plt.text(120, position_counter + (v_space_noi ), 
-         f"V: {initial_total_volume}·10^9 km³\n(#: {len(master_ds_avg)})",# Display total number of glaciers
-         va='center', ha='left', fontsize=10, color='black',
-          backgroundcolor="white", zorder=1, fontweight="bold")#fontstyle='italic',
+length=len(master_ds[master_ds.sample_id == "CNRM.001"])
+ax.text(x, y, 
+         f"V:{initial_total_volume}\n(#:{length})",# Display total number of glaciers
+         va='center', ha='left', fontsize=12, color='black',
+          backgroundcolor="white", zorder=10)#fontstyle='italic',
 
-position_counter += 4
+mean_hist = master_ds_hma['V_2014_noirr_delta'].mean()
+
+mean_com = master_ds_hma['V_2264_noirr_delta'].mean()
+ax.hlines(mean_hist, 
+  xmin=position_counter + v_space_hist - 0.3,  # adjust width
+  xmax=position_counter + v_space_hist + 0.3,
+  linestyles='dashed', 
+  color='black',
+  linewidth=2,
+  zorder=11)
+
+ax.hlines(mean_com, 
+  xmin=position_counter + v_space_com - 0.3,  # adjust width
+  xmax=position_counter + v_space_com + 0.3,
+  linestyles='dashed', 
+  color='black',
+  linewidth=2,
+  zorder=11)
+
+# position_counter += 4
 
 
 # Create custom legend elements for mean (dot) and median (stripe)
-mean_dot = Line2D([0], [0], marker='o', color='w',
-                  label='Area-weighted Mean (dot)', markerfacecolor='black', markersize=10)
-median_stripe = Line2D([0], [0], color='black', lw=2, label='Median (stripe)')
+# mean_dot = Line2D([0], [0], marker='o', color='w',
+#                   label='Area-weighted Mean (dot)', markerfacecolor='black', markersize=10)
+# median_stripe = Line2D([0], [0], color='black', lw=2, label='Median (stripe)')
 
 # Add a legend for regions, mean (dot), and median (stripe)
-region_legend_patches = [mpatches.Patch(color=colors['irr'][1], label='AllForcings'),
-                         mpatches.Patch(color=colors['noirr'][1], label='NoIrr (14-member average)'),
-                         ]
+region_legend_patches = [Line2D([0], [0], marker='x', color=colors['irr'][0], linestyle='None', markersize=10, label='Historical (W5E5)'),
+                        mpatches.Patch(color=colors['noirr'][0], label='Historical NoIrr'),
+                        Line2D([0], [0], marker='x', color=colors['irr'][1], linestyle='None', markersize=10, label='Committed (historical)'),
+                        mpatches.Patch(color=colors['noirr'][1], label='Committed (Historical NoIrr)'),
+                        Line2D([0], [0], color='black', linestyle='dashed', linewidth=2, label=f'NoIrr, {len(master_ds_hma)}-member mean')
+                        ]
 
 # Append the custom legend items for the mean dot and median stripe
-region_legend_patches += [median_stripe]
+# region_legend_patches += [median_stripe]
 
 # Create the legend with the updated patches
-# ax.legend(handles=region_legend_patches, loc='center right',
-#            bbox_to_anchor=(1.5, 0.5), ncols=1)
-ax.legend(handles=region_legend_patches, loc='lower center',
-          bbox_to_anchor=(0.5, -0.12), ncols=3)
+# fig.legend(handles=region_legend_patches, loc='center right',
+#            bbox_to_anchor=(1.15, 0.6), ncols=1)
+fig.legend(handles=region_legend_patches, loc='upper center',
+          bbox_to_anchor=(0.512, 0.96), ncols=5, fontsize=12,columnspacing=1.5)
+# fig.subplots_adjust(right=0.97)
+fig.subplots_adjust(wspace=0.1)#, hspace=0.1)
 
-ax.axvline(x=0, color='black', linestyle='--', linewidth=1, zorder=0)
-ax.set_ylabel('Regions and Subregions', labelpad=15)
-ax.set_xlabel('Average 250yr comitted volume change (%, vs. 1985)')
-ax.set_xlim(-100, 140)
 
 # Extend the ylims for more padding
-y_min, y_max = ax.get_ylim()  # Get current y-axis limits
+# y_min, y_max = fig.get_ylim()  # Get current y-axis limits
 # padding = 1  # Adjust this value as needed
 # ax.set_ylim(y_min - padding, y_max + padding)
 
 # Adjust layout and display the plot
-plt.tight_layout()
-fig_folder = os.path.join(fig_path, "03. Mass Balance", "Boxplot")
-os.makedirs(fig_folder, exist_ok=True)
+# plt.tight_layout()
+# fig_folder = os.path.join(fig_path, "03. Mass Balance", "Boxplot")
+# os.makedirs(fig_folder, exist_ok=True)
 # plt.savefig(
 #     f"{fig_folder}/Gaussian_distribution_total_region_by_region_median.png")
 plt.show()           
 
+#%% Cell 4e: Comitted mass loss boxplots totals - 1 plot
+# Function to plot the boxplots
+ylim=30
+y = ylim-10
+x=1.3
 
- #%% Cell 5: Updated table
+def plot_boxplot(data, position, label, color, colorline, alpha, is_noirr):
+    if position<5:
+        width=2
+    else:
+        width=1
+    bp = ax.boxplot(data, patch_artist=True, labels=[""],#label if is_noirr else [""],  # only set labels for Noirr
+                    vert=True, widths=width,
+                    boxprops=dict(facecolor=color, alpha=alpha,
+                                  edgecolor='none'),
+                    medianprops=dict(color=colorline, linewidth=3),
+                    positions=[position], showfliers=False, zorder=2)
     
- 
+
+    # Get the median value from the boxplot
+    
+    ax.tick_params(labelsize=10)
+    if p>0:
+        # ax.tick_params(left=False, bottom=True, labelleft=False, labelbottom=False)
+        fontweight="medium"
+    else: 
+        
+        for spine in ax.spines.values():
+            spine.set_linewidth(2)
+        fontweight="bold"
+    # if is_noirr and label == ["High Mountain Asia"]:
+    #     ax.set_xlabel("High \n Mountain \n Asia", rotation=0, fontweight=fontweight, fontsize=12, labelpad = 10 )
+    # elif is_noirr:
+    #     ax.set_xlabel(label[0], rotation=30, fontweight=fontweight, fontsize=12)
+
+
+    median_value = bp['medians'][0].get_xdata()[0]
+    ax.set_ylim(-75, ylim)
+
+    # ax.text(median_value + 10, position, f'{median_value:.1f}',  # Place above for Irr
+    #         va='center', ha='center', fontsize=10, color='black', #fontweight='bold',
+    #         # bbox=dict(boxstyle='round,pad=0.001',
+    #         #           facecolor='white', edgecolor='none'),
+    #         zorder=3)
+
+    return bp
+
+
+
+
+regions = [13, 14, 15]
+subregions = [9, 3, 3]
+
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv")
+
+master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model averages ending with 0 except for IPSL
+               (df['sample_id'].str.startswith('IPSL'))]
+
+master_ds_tot_vol = master_ds.groupby(['rgi_subregion', 'sample_id'], as_index=False).agg({  # calculate the 14 member average for noirr and delta, for irr the first value can be taken as they are all the same
+    'V_2264_noirr': 'sum',
+    'V_2264_irr': 'sum',
+    'V_2014_noirr': 'sum',
+    'V_2014_irr': 'sum',
+    'V_1985_irr': 'sum',
+    'rgi_id': lambda _: "regional total",
+    # lamda is anonmous functions, returns 11 member average
+    # take first value for all columns that are not in the list
+    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_noirr', 'V_2264_irr','V_2014_noirr', 'V_2014_irr','V_1985_irr', 'sample_id', 'rgi_id']} #take first for rgi_id, rgi_region, full_name, cenlon, cenlat, rgi_date, rgi_areakm2
+})
+
+master_ds_tot_vol['V_2264_noirr_delta'] = ((master_ds_tot_vol['V_2264_noirr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr'])*100
+master_ds_tot_vol['V_2264_irr_delta'] = (master_ds_tot_vol['V_2264_irr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol['V_2014_noirr_delta'] = (master_ds_tot_vol['V_2014_noirr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol['V_2014_irr_delta'] = (master_ds_tot_vol['V_2014_irr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol = master_ds_tot_vol[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 
+                       'V_2264_irr','V_2264_noirr','V_2014_irr','V_2014_noirr', 'V_1985_irr','V_2264_irr_delta','V_2264_noirr_delta','V_2014_irr_delta','V_2014_noirr_delta']]
+
+
+master_ds = master_ds[master_ds['V_2264_irr'].notna()]
+master_ds_tot_vol=master_ds_tot_vol[master_ds_tot_vol['V_2264_irr'].notna()]
+# master_ds_area_weighted=master_ds_area_weighted[master_ds_area_weighted['V_2264_irr'].notna()]
+
+use_weights = True
+# v_space_noi2 = 1.9  # Vertical space between irr and noirr boxplots
+v_space_com = 1.6  # Vertical space between irr and noirr boxplots
+v_space_hist = 0.4  # Vertical space between irr and noirr boxplots
+v_space_com_all = 2.3  # Vertical space between irr and noirr boxplots
+v_space_hist_all = 0.1  # Vertical space between irr and noirr boxplots
+# v_space_irr1 = 0.1  # Vertical space between irr and noirr boxplots
+
+# Storage for combined data
+all_noirr, all_irr = [], []
+position_counter = 1
+
+cumulative_index = 14
+
+# Initialize plot
+fig = plt.figure(figsize=(16, 6))
+gs = gridspec.GridSpec(1, 16, width_ratios=[1.5] + [1]*15)  # First axis twice as wide
+
+# axes = [fig.add_subplot(gs[i]) for i in range(16)]
+fig, axes = plt.subplots(1,1, figsize=(16, 6), sharey=True)
+print(axes)
+# axes = axes.flatten()
+p=5.4
+tick_positions=[]
+tick_labels=[]
+mean_list=[]
+
+# Example usage: Main loop through regions and subregions
+for r, region in enumerate((regions)):
+    for sub in range(list((subregions))[r]):
+        # Filter subregion-specific data
+        ax = axes
+        region_id = f"{region}.0{sub+1}"
+        print(region_id)
+       
+
+        subregion_ds = master_ds_tot_vol[master_ds_tot_vol['rgi_subregion'].str.contains(
+            f"{region}-0{sub+1}")]
+
+        # Calculate mean values for Noirr and Irr
+        # noirr_mean = master_ds_area_weighted['V_2264_noirr'][cumulative_index]
+        # irr_mean = master_ds_area_weighted['V_2264_irr'][cumulative_index]
+
+        # Set color and label based on the region
+        try:
+            label = subregion_ds.full_name.iloc[0]
+        except:
+            label = f"{region}-0{sub+1}"
+        
+        if region==13:
+            if sub ==1:
+                label = "Pamir"
+            elif sub ==3:
+                label = "East Tien Shan"
+            elif sub ==5:
+                label = "East Kun Lun"
+        # Plot Noirr and Irr boxplots
+        print(position_counter)
+        print(subregion_ds['V_2014_irr_delta'].iloc[0])
+        print(subregion_ds['V_2264_irr_delta'].iloc[0])
+        
+        tick_positions.append(p +1 )#+ v_space_com -0.2)  # or average of hist + com if you want centered
+        tick_labels.append(label)
+        
+        mean_hist = subregion_ds['V_2014_noirr_delta'].mean()
+
+        mean_com_irr = subregion_ds['V_2264_irr_delta'].mean() 
+        mean_com_noirr = subregion_ds['V_2264_noirr_delta'].mean()   
+        mean_list.append((region_id, mean_com_irr, mean_com_noirr))
+        
+        box_noirr = plot_boxplot(
+            subregion_ds['V_2014_noirr_delta'], p + v_space_hist, label, color=colors['noirr'][1],colorline=colors['cline'][0], alpha=1, is_noirr=True)
+        box_noirr = plot_boxplot( 
+            subregion_ds['V_2264_noirr_delta'], p + v_space_com, label, color=colors['noirr_com'][1], colorline=colors['cline'][1], alpha=1, is_noirr=True)
+        
+        box_irr = ax.scatter([p +
+                               v_space_hist], subregion_ds['V_2014_irr_delta'].iloc[0], color=colors['irr'][0], marker="x", s=60, linewidths=3, zorder=10)
+        box_irr = ax.scatter([p +
+                               v_space_com], subregion_ds['V_2264_irr_delta'].iloc[1], color=colors['irr_com'][0], marker="x", s=60, linewidths=3, zorder=10)
+        # ax.hlines(mean_hist, 
+        #   xmin=p + v_space_hist - 0.5,  # adjust width
+        #   xmax=p + v_space_hist + 0.5,
+        #   linestyles='dotted', 
+        #   color=colors['cline'][0],
+        #   linewidth=3,
+        #   zorder=9)
+        
+        # ax.hlines(mean_com_noirr, 
+        #   xmin=p + v_space_com - 0.5,  # adjust width
+        #   xmax=p + v_space_com + 0.5,
+        #   linestyles='dotted', 
+        #   color=colors['cline'][1],
+        #   linewidth=3,
+        #   zorder=9)
+
+        
+        # Annotate the number of glaciers and delta between the two columns
+        num_glaciers = len(master_ds[master_ds.rgi_subregion==f"{region}-0{sub+1}"][master_ds.sample_id=="IPSL-CM6.000"])
+        
+        # delta = noirr_mean - irr_mean
+
+        # Display number of glaciers and delta
+        initial_volume = round(subregion_ds['V_1985_irr'].iloc[0]*1e-9)
+        # ax.text(p, y, 
+        #          f'{initial_volume}\n({num_glaciers})',  # \nΔ = {delta:.2f}',
+        #          va='center', ha='left', fontsize=12, color='black',
+        #          backgroundcolor="white",  zorder=10)
+        ax.axvline(p-0.5, color='lightgrey', linestyle='--',
+                    linewidth=1, zorder=1) 
+
+        p+=3
+        
+    
+# # Plot overall average boxplots for Irr and Noirr
+p=1.2
+ax = axes
+
+master_ds_hma = master_ds.groupby(['sample_id'], as_index=False).agg({  # calculate the 14 member average for noirr and delta, for irr the first value can be taken as they are all the same
+    'V_2264_noirr': 'sum',
+    'V_2264_irr': 'sum',
+    'V_2014_noirr': 'sum',
+    'V_2014_irr': 'sum',
+    'V_1985_irr': 'sum',
+    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_noirr', 'V_2264_irr','V_2014_noirr', 'V_2014_irr','V_1985_irr']}#,  'rgi_id', 'rgi_subregion','rgi_region']} #take first for rgi_id, rgi_region, full_name, cenlon, cenlat, rgi_date, rgi_areakm2
+})
+
+master_ds_hma['V_2264_noirr_delta'] = ((master_ds_hma['V_2264_noirr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr'])*100
+master_ds_hma['V_2264_irr_delta'] = (master_ds_hma['V_2264_irr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma['V_2014_noirr_delta'] = (master_ds_hma['V_2014_noirr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma['V_2014_irr_delta'] = (master_ds_hma['V_2014_irr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma = master_ds_hma[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 
+                       'V_2264_irr','V_2264_noirr','V_2014_irr','V_2014_noirr', 'V_1985_irr','V_2264_irr_delta','V_2264_noirr_delta','V_2014_irr_delta','V_2014_noirr_delta']]
+
+
+avg_irr = ax.scatter([p +
+                       v_space_hist_all], master_ds_hma['V_2014_irr_delta'].iloc[0], color=colors['irr'][0], marker="x", s=100, linewidths=4)
+avg_irr = ax.scatter([p +
+                       v_space_com_all], master_ds_hma['V_2264_irr_delta'].iloc[0], color=colors['irr_com'][0], marker="x", s=100, linewidths=4)
+avg_noi_hist = plot_boxplot( master_ds_hma['V_2014_noirr_delta'], p + v_space_hist_all, [
+    "High Mountain Asia"], color=colors['noirr'][1], colorline=colors['cline'][0], alpha=1, is_noirr=True)
+avg_noi_com = plot_boxplot(master_ds_hma['V_2264_noirr_delta'], p + v_space_com_all, [
+    "High Mountain Asia"], color=colors['noirr_com'][1], colorline=colors['cline'][1], alpha=1, is_noirr=True)
+
+
+initial_total_volume = round(master_ds_hma['V_1985_irr'][0]*1e-9)
+# Annotate the number of glaciers for the overall average
+length=len(master_ds[master_ds.sample_id == "CNRM.001"])
+# ax.text(v_space_hist, y, 
+#          f"V:{initial_total_volume}\n(#:{length})",# Display total number of glaciers
+#          va='center', ha='left', fontsize=12, color='black',
+#           backgroundcolor="white", zorder=10)#fontstyle='italic',
+
+mean_hist = master_ds_hma['V_2014_noirr_delta'].mean()
+
+mean_com_irr = master_ds_hma['V_2264_irr_delta'].mean()
+mean_com_noirr = master_ds_hma['V_2264_noirr_delta'].mean()
+mean_list.append(("High Mountain Asia", mean_com_irr, mean_com_noirr))
+
+df_means = pd.DataFrame(mean_list, columns=["subregion", "V_2264_irr_delta","V_2264_noirr_delta"])
+
+df_means.to_csv(f"{wd_path}masters/mean_deltaV_Comitted.csv")
+
+# ax.hlines(mean_hist, 
+#   xmin=p + v_space_hist - 1.3,  # adjust width
+#   xmax=p + v_space_hist + 0.7,
+#   linestyles='dotted', 
+#   color=colors['cline'][0],
+#   linewidth=3,
+#   zorder=11)
+
+# ax.hlines(mean_com_noirr, 
+#   xmin=p + v_space_com -0.3,  # adjust width
+#   xmax=p + v_space_com + 1.7,
+#   linestyles='dotted', 
+#   color=colors['cline'][1],
+#   linewidth=3,
+#   zorder=11)
+
+
+# Add a legend for regions, mean (dot), and median (stripe)
+region_legend_patches = [Line2D([0], [0], marker='x', color=colors['irr'][0], linestyle='None', markersize=8, lw=20, label='Historical (W5E5)'),
+                        mpatches.Patch(color=colors['noirr'][1], label='Historical NoIrr'),
+                        Line2D([0], [0], marker='x', color=colors['irr_com'][0], linestyle='None', markersize=8, lw=20, label='Committed (historical)'),
+                        mpatches.Patch(color=colors['noirr_com'][0], label='Committed (Historical NoIrr)'),
+                        # Line2D([0], [0], color='black', linestyle='dashed', linewidth=2, label=f'NoIrr, {len(master_ds_hma)}-member mean')
+                        ]
+
+tick_positions.append(1 + v_space_com)
+tick_labels.append("High\nMountain\nAsia")
+
+# Set tick positions and rotated labels (except HMA)
+ax.set_xticks(tick_positions)
+ax.set_xticklabels(tick_labels, fontsize=14, rotation=30)
+
+# Override HMA rotation to be flat (if needed)
+for label in ax.get_xticklabels():
+    if label.get_text() == "High\nMountain\nAsia":
+        label.set_rotation(0)
+        label.set_fontweight("bold")
+        
+fig.legend(handles=region_legend_patches, loc='upper center',
+          bbox_to_anchor=(0.512, 0.96), ncols=5, fontsize=14,columnspacing=1.5)
+ax.set_ylabel('Volume change (%, vs. 1985 historic)', labelpad=15, fontsize=14)
+fig.subplots_adjust(wspace=0.1)#, hspace=0.1)
+ax.set_xlim(0, 3*15+5)
+ax.tick_params(labelsize=12)
+
+
+ax.axhline(y=0, color='grey', linestyle='--', linewidth=1, zorder=0)
+
+output_nc_path = os.path.join(wd_path, "masters", "master_comitted_volume_timeseries_individual_member_noIPSL.nc")
+tlines = xr.open_dataset(output_nc_path)
+ax_inset = inset_axes(ax, width="24%", height="28%", loc='lower left',bbox_to_anchor=(286,130,1800, 700))  # width/height can be % or float
+ax_inset.tick_params(axis='both', labelsize=12)
+ax_inset.yaxis.tick_right()             # Move tick labels to the right
+ax_inset.yaxis.set_label_position("right")
+
+for m,model in enumerate(models_shortlist):
+    for x in range(members_averages[m]):
+        if x>0:
+            ax_inset.plot(
+                tlines.sel(scenario='committed', model=model, member=x, experiment="NoIrr").time.values,
+               tlines.sel(scenario='committed', model=model, member=x,experiment="NoIrr").volume_percent-100, ls=':', lw=1, color=colors['noirr_com'][0]
+            )
+ax_inset.plot(
+tlines.sel(scenario='committed', model="W5E5", member=0, experiment="Irr").time.values,
+tlines.sel(scenario='committed', model="W5E5", member=0,experiment="Irr").volume_percent-100, ls='-', lw=2, color=colors['irr_com'][0]
+)
+
+ax_inset.plot(
+tlines.sel(scenario='committed', model="avg", member=0, experiment="NoIrr").time.values,
+tlines.sel(scenario='committed', model="avg", member=0,experiment="NoIrr").volume_percent-100, ls='--', lw=2, color=colors['noirr_com'][0]
+)
+ax_inset.set_title("Transient evolution", fontsize=12)
+ax_inset.set_xticks([2014, 2139, 2264])
+ax_inset.set_xticklabels(['0', '125', '250'])
+
+rect_x = p + v_space_hist_all -1.1
+rect_y = -25
+rect_w=4.5
+rect_height=30
+
+square = mpatches.Rectangle((rect_x, rect_y), rect_w, rect_height,
+                               linewidth=0.7, edgecolor='black', facecolor='none')
+ax.add_patch(square)
+
+
+rect_x_zoom = 0.2
+rect_y_zoom = -67
+rect_w_zoom=12
+rect_height_zoom=30
+
+square_zoom = mpatches.Rectangle((rect_x_zoom, rect_y_zoom), rect_w_zoom, rect_height_zoom,
+                               linewidth=1, edgecolor='none', facecolor='none')
+ax.add_patch(square_zoom)
+
+
+# --- Convert rectangle data coordinates to figure coordinates ---
+# Lower left and lower right corners of the rectangle
+ll_data = (rect_x, rect_y)
+lr_data = (rect_x + rect_w, rect_y)
+
+ll_disp = ax.transData.transform(ll_data)
+lr_disp = ax.transData.transform(lr_data)
+
+ll_fig = fig.transFigure.inverted().transform(ll_disp)
+lr_fig = fig.transFigure.inverted().transform(lr_disp)
+
+# --- Get upper left and right of the inset in figure coordinates ---
+# These are in the inset's axes coordinates, so (0, 1) is upper-left, (1, 1) is upper-right
+ul_data_zoom = (rect_x_zoom, rect_y_zoom+rect_height_zoom)
+ur_data_zoom = (rect_x_zoom + rect_w_zoom, rect_y_zoom+rect_height_zoom)
+
+ul_disp_zoom = ax.transData.transform(ul_data_zoom)
+ur_disp_zoom = ax.transData.transform(ur_data_zoom)
+
+ul_fig_zoom = fig.transFigure.inverted().transform(ul_disp_zoom)
+ur_fig_zoom = fig.transFigure.inverted().transform(ur_disp_zoom)
+
+# --- Draw lines from rectangle to inset corners ---
+line_left = mlines.Line2D([ll_fig[0], ul_fig_zoom[0]], [ll_fig[1], ul_fig_zoom[1]],
+                          transform=fig.transFigure, color='black', linestyle='--', zorder=10, lw=0.7)
+line_right = mlines.Line2D([lr_fig[0], ur_fig_zoom[0]], [lr_fig[1], ur_fig_zoom[1]],
+                           transform=fig.transFigure, color='black', linestyle='--', zorder=10, lw=0.7)
+
+fig.lines.extend([line_left, line_right])
+# Extend the ylims for more padding
+# y_min, y_max = fig.get_ylim()  # Get current y-axis limits
+# padding = 1  # Adjust this value as needed
+# ax.set_ylim(y_min - padding, y_max + padding)
+
+# Adjust layout and display the plot
+# plt.tight_layout()
+# =fig_folder = os.path.join(fig_path)#, "03. Mass Balance", "Boxplot")
+# os.makedirs(fig_folder, exist_ok=True)
+plt.savefig(
+    f"{fig_path}/Boxplot_Comitted_Mass_Loss.png")
+plt.show()      
+
+
+
+
+#%% Cell 4d: Create comitted mass loss plot transient for totals only
+
+
+members_averages = [2, 3,  3,  5, 1]
+models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM"]#, "IPSL-CM6"]
+
+# define the variables for p;lotting
+variables = ["volume", "area"]
+factors = [10**-9, 10**-6]
+
+variable_names = ["Volume", "Area"]
+variable_axes = ["Volume compared to 1985 Irr-scenario [%]",
+                 "Area compared to 1985 Irr-scenario [%]"]
+use_multiprocessing = False
+
+output_csv_path = os.path.join(wd_path, "masters", f"error_rgi_ids.csv")
+error_ids = pd.read_csv(output_csv_path)['rgi_id'].tolist()
+subset_gdirs = gdirs_3r_a5[:100]
+
+nan_mask = pd.read_csv(os.path.join(
+    wd_path, "masters", "nan_mask_comitted_random.csv")).rgi_ids
+# Remove duplicates if needed
+nan_mask = set(pd.DataFrame({'rgi_id': nan_mask.unique()}).rgi_id.to_numpy())
+rgi_ids_test = []
+for gdir in subset_gdirs:
+    rgi_ids_test.append(gdir.rgi_id)
+rgi_ids_test = [rgi_id for rgi_id in rgi_ids_test if rgi_id not in nan_mask]
+print(len(rgi_ids_test))
+
+all_var_data = {}
+
+
+# repeat the loop for area and volume
+for v, var in enumerate(variables):
+    print(var)
+    # create a new plot for both area and volume
+    fig, ax = plt.subplots(figsize=(7, 4))  # create a new figure
+
+    # create a timeseries for all the model members to add the data, needed to calculate averages later
+
+    linestyles = ['solid', 'solid']
+    for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_random.nc"]):
+        scenario = "committed" if "committed" in filepath or "comitted" in filepath else "historical"
+
+        # for f, filepath in enumerate([f"climate_run_output_baseline_W5E5.000.nc", f"climate_run_output_baseline_W5E5.000_comitted_cst_test.nc"]):
+        if f == 1:
+            color_id = "_com"
+            legend_id = "committed"
+            bar_values = 50
+        else:
+            color_id = ""
+            legend_id = ""
+            bar_values = 20
+
+        print(f)
+        # load and plot the baseline data
+        baseline_path = os.path.join(
+            wd_path, "summary", filepath)
+        baseline = xr.open_dataset(baseline_path)
+        # if f == 0:
+        # rgi_ids_test = baseline.rgi_id.values[:10]
+        baseline = baseline.where(
+            baseline.rgi_id.isin(rgi_ids_test), drop=True)
+        # print(baseline[var].sum(
+        # dim="rgi_id").values * factors[v])
+        # print(len(baseline.rgi_id))
+        if f == 0:
+            resp_value = baseline[var].sum(dim="rgi_id")[0].values * factors[v]
+        ax.plot(baseline["time"], (baseline[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
+                label=f"AllForcings {legend_id}", color=colors[f"irr{color_id}"][0], linewidth=2, zorder=15, linestyle=linestyles[f])
+        series_values= (baseline[var].sum(dim="rgi_id") * factors[v])/resp_value*100
+        da = xr.DataArray(
+            series_values,
+            dims=["time"],
+            coords={
+                "time": baseline["time"].values,
+                "model": "W5E5",
+                "member": 0,
+                "scenario": scenario,
+                "experiment":"Irr"
+            },
+            name=variable_names[v].lower() + "_percent"
+        )
+        # Initialize if needed
+        if variable_names[v].lower() not in all_var_data:
+            all_var_data[variable_names[v].lower()] = []
+        
+        all_var_data[variable_names[v].lower()].append(da)
+        
+        print("baseline time from:", baseline["time"][0].values)
+        print("baseline time to:", baseline["time"][-1].values)
+
+        mean_values_irr = (baseline[var].sum(
+            dim="rgi_id") * factors[v]).values
+
+        member_data_noirr = []
+        nan_runs_noirr = []
+        
+        
+
+        for m, model in enumerate(models_shortlist):
+            for i in range(members_averages[m]):
+                # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
+                # IPSL-CM6 only has 1 member, so the sample_id must end with 000
+                if members_averages[m] > 1:
+                    i += 1
+                    label = None
+                else:
+                    label = "GCM member"
+
+                sample_id = f"{model}.00{i}"
+                filepath = [f'climate_run_output_perturbed_{sample_id}.nc',
+                            f'climate_run_output_perturbed_{sample_id}_comitted_random.nc'][f]
+                # f'climate_run_output_perturbed_{sample_id}_comitted_cst_test.nc'][f]
+                print(sample_id)
+                # load and plot the data from the climate output run and counterfactual
+                climate_run_opath_noirr = os.path.join(
+                    sum_dir, filepath)  # f'climate_run_output_perturbed_{sample_id}_comitted.nc')
+                climate_run_output_noirr = xr.open_dataset(
+                    climate_run_opath_noirr)
+                # if f == 0:
+                # rgi_ids_test=baseline.rgi_id[:10]
+                climate_run_output_noirr = climate_run_output_noirr.where(
+                    climate_run_output_noirr.rgi_id.isin(rgi_ids_test), drop=True)
+                ax.plot(climate_run_output_noirr["time"], (climate_run_output_noirr[var].sum(dim="rgi_id") * factors[v])/resp_value*100,
+                        label=None, color=colors[f"noirr{color_id}"][1], linewidth=1, linestyle=linestyles[f])
+
+                # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
+                member_data_noirr.append((climate_run_output_noirr[var].sum(
+                    dim="rgi_id").values/resp_value*100 * factors[v]))
+                # print(len(climate_run_output_noirr[var][0].values))
+                
+                #prepare data for saving
+                # Extract time values (ensure they're datetime64)
+                time_values = climate_run_output_noirr["time"].values
+                print(time_values)
+                series_values = (climate_run_output_noirr[var].sum(
+                    dim="rgi_id").values / resp_value * 100 * factors[v]).flatten()
+                # scenario = "committed" if "committed" in filepath or "comitted" in filepath else "historical"
+
+                da = xr.DataArray(
+                    series_values,
+                    dims=["time"],
+                    coords={
+                        "time": time_values,
+                        "model": model,
+                        "member": i,
+                        "scenario": scenario,
+                        "experiment":"NoIrr"
+                    },
+                    name=variable_names[v].lower() + "_percent"
+                )
+                # Initialize if needed
+                if variable_names[v].lower() not in all_var_data:
+                    all_var_data[variable_names[v].lower()] = []
+                
+                all_var_data[variable_names[v].lower()].append(da)
+
+        # stack the member data
+        stacked_member_data = np.stack(member_data_noirr)
+        all_nan_rgi_ids = np.unique(nan_runs_noirr)
+        df_nan_rgi_ids = pd.DataFrame({'rgi_id': all_nan_rgi_ids})
+        output_csv_path = os.path.join(
+            wd_path, "masters", f"error_rgi_ids.csv")
+        df_nan_rgi_ids.to_csv(output_csv_path, index=False)
+
+        # calculate and plot volume/area 10-member mean
+        mean_values_noirr = np.median(stacked_member_data, axis=0).flatten()
+        # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
+        ax.plot(climate_run_output_noirr["time"].values, mean_values_noirr,
+                color=colors[f"noirr{color_id}"][0], linestyle=linestyles[f], lw=2, label=f"NoIrr ({sum(members_averages)}-member avg) {legend_id}")
+
+        da = xr.DataArray(
+            mean_values_noirr,
+            dims=["time"],
+            coords={
+                "time": climate_run_output_noirr["time"].values,
+                "model": "avg",
+                "member": 0,
+                "scenario": scenario,
+                "experiment":"NoIrr"
+            },
+            name=variable_names[v].lower() + "_percent"
+        )
+        # Initialize if needed
+        if variable_names[v].lower() not in all_var_data:
+            all_var_data[variable_names[v].lower()] = []
+        
+        all_var_data[variable_names[v].lower()].append(da)
+        
+        # calculate and plot volume/area 10-member min and max for ribbon
+        min_values_noirr = np.min(stacked_member_data, axis=0).flatten()
+        max_values_noirr = np.max(stacked_member_data, axis=0).flatten()
+        ax.fill_between(climate_run_output_noirr["time"].values, min_values_noirr, max_values_noirr,
+                        color=colors[f"noirr{color_id}"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range) {legend_id}", zorder=16)
+
+        if f == 0:
+            var_value_1985 = mean_values_irr[0]
+
+    # Set labels and title for the combined plot
+    ax.set_ylabel(variable_axes[v])
+    ax.set_xlabel("Time [year]")
+    ax.set_title(f"Summed {variable_names[v]}, RGI 13-15, A >5 km$^2$")
+
+    # Adjust the legend
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center',
+               bbox_to_anchor=(0.5, -0.15), ncol=3)
+    plt.tight_layout()
+
+    # specify and create a folder for saving the data (if it doesn't exists already) and save the plot
+    o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/0{v + 1}. {variable_names[v]}/00. Combined"
+    os.makedirs(o_folder_data, exist_ok=True)
+    o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted_random.png"
+    # o_file_name = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.comitted_cst_test.png"
+    # plt.savefig(o_file_name, bbox_inches='tight')
+    dataset_vars = {}
+    
+    for var_key, da_list in all_var_data.items():
+        # Concatenate over a fake 'stacked' dimension
+        combined_da = xr.concat(da_list, dim="stacked")
+
+        combined_da = combined_da.assign_coords(
+            model=("stacked", [da.coords["model"].item() for da in da_list]),
+            member=("stacked", [da.coords["member"].item() for da in da_list]),
+            scenario=("stacked", [da.coords["scenario"].item() for da in da_list]),
+            experiment=("stacked", [da.coords["experiment"].item() for da in da_list])
+        )
+        
+        # Set MultiIndex with all keys used
+        combined_da = combined_da.set_index(stacked=["model", "member", "scenario","experiment"])
+        
+        # Unstack cleanly since entries are now unique
+        combined_da = combined_da.unstack("stacked")
+        
+        dataset_vars[var_key + "_percent"] = combined_da
+
+    # Build the dataset
+    final_ds = xr.Dataset(dataset_vars)
+    
+    # Save the dataset
+    output_nc_path = os.path.join(wd_path, "masters", f"master_comitted_{var}_timeseries_individual_member_noIPSL.nc")
+    final_ds.to_netcdf(output_nc_path)
+    print(f"Saved dataset with dimensions (model, member, time) to:\n{output_nc_path}")
+     
+
+#%% Table
+
 # Specify Paths
 o_folder_data = (
     "/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output Files/02. OGGM/02. Volume Area simulations"
 )
 o_file_data = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions.csv"
 unit="km3"
+factors = [10**-9]
 if unit=="Gt":
     rho=0.85 #Gt/km³
     o_file_data_processed = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions_paper_output_table_gt.csv"
@@ -1418,6 +2266,17 @@ else:
 
 # Load dataset
 ds = pd.read_csv(o_file_data)
+ds_subregions_initial = ds[ds.time == 1985.0][[
+    "subregion",
+    "volume_irr",
+]].reset_index(drop=True)
+
+total_row = pd.DataFrame({
+    'subregion': ['total'],
+    'volume_irr': [ds_subregions_initial['volume_irr'].sum()]
+})
+ds_subregions_initial = pd.concat([ds_subregions_initial, total_row], ignore_index=True)
+
 ds_subregions = ds[ds.time == 2014.0][[
     "subregion",
     "volume_loss_percentage_irr",
@@ -1504,11 +2363,37 @@ ds_all_losses = ds_all_losses[[
 
 ]].round(1)
 
+
+#Add comitted mass losses
+
+df_means_com = pd.read_csv(f"{wd_path}masters/mean_deltaV_Comitted.csv").reset_index(drop=True).drop('Unnamed: 0', axis=1)
+df_means_com['subregion'] = df_means_com['subregion'].replace('High Mountain Asia', 'total')
+df_means_com['delta_com'] =df_means_com['V_2264_noirr_delta'] - df_means_com['V_2264_irr_delta']
+df_all_losses = ds_all_losses.merge(df_means_com.round(1), on="subregion", how="left")
+
+df_means_future = xr.open_dataset(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total.nc")
+df_means_future = df_means_future.sel(time=2074).sel(sample_id='3-member-avg')
+
+for ssp in ['126','370']:
+    df_future=df_means_future.sel(ssp=ssp).subregion.values
+    formatted_codes = [code.replace('-', '.') for code in df_future]
+    df_future_vhist=df_means_future.sel(ssp=ssp).sel(exp="IRR").volume.values*factors
+    df_future_vhist_noirr=df_means_future.sel(ssp=ssp).sel(exp="NOI").volume.values*factors
+    df = pd.DataFrame({
+    'subregion': formatted_codes,
+    f'volume_irr_ssp{ssp}': df_future_vhist,
+    f'volume_noi_ssp{ssp}': df_future_vhist_noirr #- ds_total.loc[1985.0, "volume_irr"]) / ds_total.loc[1985.0, "volume_irr"]) * 100,
+    })
+    
+    df[f'volume_noi_ssp{ssp}'] = round(((df[f'volume_noi_ssp{ssp}'] - ds_subregions_initial.volume_irr )/ ds_subregions_initial.volume_irr) * 100,1)
+    df[f'volume_irr_ssp{ssp}'] = round(((df[f'volume_irr_ssp{ssp}'] - ds_subregions_initial.volume_irr )/ ds_subregions_initial.volume_irr) * 100,1)
+    df[f'delta_irr_ssp{ssp}'] = round(df[f'volume_irr_ssp{ssp}'] -df[f'volume_noi_ssp{ssp}'],1)
+    ds_all_losses = df_all_losses.merge(df, on="subregion", how="left")
+    
+
 ds_all_losses.to_csv(o_file_data_processed)   
-    
-    
-    
-    
+o_file_data_processed_2 = f"{fig_path}/Table_1985_2014.{timeframe}.delta.Volume.subregions_paper_output_table_absolute.csv"
+ds_all_losses.to_csv(o_file_data_processed_2)   
     
     
     
@@ -1739,7 +2624,7 @@ for var in ["Temperature", "Precipitation"]:
                                 # Part 1: Delete
                                 diff_folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/03. Regridded Perturbations/{var}/{timeframe}/{model}/{member}"
                                 ifile_diff = f"{diff_folder_in}/REGRID.{model}.{var_suffix}.DIF.00{member}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.nc"
-                                diff = xr.open_dataset(ifile_diff)
+                                diff = xr.open_dataset(ifile_diff) 
 
                                 if scale == "Local":  # scale the data to the local scale
                                     diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (
@@ -1904,7 +2789,7 @@ plt.show()
 
 #%% Cell6b: TP plot - 1d legend
 
-
+plt.rcParams.update({'font.size': 16})
 
 def plot_subplots(index, subplots, annotation, diff, timestamps, axes, shp, custom_cmap, timeframe, scale, title, vmin=None, vmax=None):
 
@@ -1953,6 +2838,10 @@ def plot_subplots(index, subplots, annotation, diff, timestamps, axes, shp, cust
         gl = ax.gridlines(draw_labels=True)
         gl.top_labels = False
         gl.right_labels = False
+        if index in ["A","C"]:
+            gl.left_labels = False
+        if index in ["A","C","B"]:
+            gl.bottom_labels = False
 
     
         gl.ylabel_style = {'size': 14}
@@ -1967,7 +2856,7 @@ def plot_subplots(index, subplots, annotation, diff, timestamps, axes, shp, cust
 
         """4 Include labels for the cbar and for the y and x axis"""
 
-        ax.set_title(title, fontsize=14)
+        ax.set_title(title, fontsize=18)
 
     return im
 
@@ -1992,6 +2881,8 @@ all_vars_local_p = []
 all_vars_local_t = []
 all_model_diffs_avg_p = []
 all_model_diffs_avg_t = []
+all_member_diff_p = []
+all_member_diff_t = []
 # "Temperature"]:  # ,"Temperature"]:
 for var in ["Temperature", "Precipitation"]:
     for timeframe in ["annual"]:  # :, "seasonal", "monthly"]:
@@ -2029,14 +2920,20 @@ for var in ["Temperature", "Precipitation"]:
                     vmin_t = -1#-1.5
                     vmax_t = 1#1.5
                     zero_scaled_t = (abs(vmin_t)/(abs(vmin_t)+abs(vmax_t)))
-                    colors = [(0, 'xkcd:mocha'), (zero_scaled_t,
-                                                      'xkcd:white'), (1, 'xkcd:aquamarine')]
-                    custom_cmap_p = LinearSegmentedColormap.from_list(
-                        'custom_cmap', colors)
+                    # colors = [(0, 'xkcd:mocha'), (zero_scaled_t,
+                    #                                   'xkcd:white'), (1, 'xkcd:aquamarine')]
+                    # custom_cmap_p =  LinearSegmentedColormap.from_list(
+                    #     'custom_cmap', colors)
+                    brbg11 = plt.get_cmap('BrBG', 11)
+                    colors = brbg11([i for i in range(brbg11.N)[2:-2]])  # Get list of 11 RGBA colors
+                    custom_cmap_p = LinearSegmentedColormap.from_list('BrBG11', colors) 
+
+                    # If you want a ListedColormap for use in pcolormesh, imshow, etc.
+                    # custom_cmap_p = ListedColormap(brbg11.colors)
                     
                     vmin_p = -20
                     vmax_p = 20
-                    zero_scaled_p = (abs(vmin)/(abs(vmin)+abs(vmax)))
+                    zero_scaled_p = (abs(vmin_p)/(abs(vmin_p)+abs(vmax_p)))
                            
                     colors = [(0, 'cornflowerblue'), (zero_scaled_p,
                                                       'xkcd:white'), (1, 'xkcd:tomato')]
@@ -2049,32 +2946,42 @@ for var in ["Temperature", "Precipitation"]:
                     all_model_diffs = []
                     models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
                     lonmin, lonmax, latmin, latmax = [60,109,22,52]
-
+                    all_member_diffs = []
                     for (m, model) in enumerate(models):
                         model_diff = []
                         for member in range(members[m]):
+                            member_diff=[]
                             # only open data for non model averages (except for IPSL-CM6 as only one member)
                             if model == "IPSL-CM6" or member != 0:
 
                                 # Part 1: Delete
                                 diff_folder_in = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/03. Regridded Perturbations/{var}/{timeframe}/{model}/{member}"
                                 ifile_diff = f"{diff_folder_in}/REGRID.{model}.{var_suffix}.DIF.00{member}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.nc"
-                                diff = xr.open_dataset(ifile_diff)
+                                diff =  xr.open_dataset(ifile_diff)
 
                                 if scale == "Local":  # scale the data to the local scale
                                     diff = diff.where((diff.lon >= 60) & (diff.lon <= 109) & (
                                         diff.lat >= 22) & (diff.lat <= 52), drop=True)
+                                    print(diff.lon)
                                     
                                     
                                 # loose all the filtered data (nan)
                                 diff_clean = diff.dropna(dim="lon", how="all")
                                 # include the values in the list for caluclating the avg difference by model
                                 model_diff.append(diff_clean)
-                                # include the values in the list for caluclating the avg difference over all models
+                                member_diff.append(diff_clean)
                                 all_diff.append(diff_clean)
+                                all_member_diff = xr.concat(
+                                    member_diff, dim="member") 
+                                all_member_diffs.append(all_member_diff)
+                                
+                                # include the values in the list for caluclating the avg difference over all models
+                               
                         all_model_diff = xr.concat(
                             model_diff, dim="models").mean(dim="models")  # concatenate all models into a list averaged by model
                         all_model_diffs.append(all_model_diff)
+                     # concatenate all models into a list averaged by model
+                    
                     all_model_diffs_avg = xr.concat(
                         all_model_diffs, dim="models")  # concatenate all models
                     all_diffs_avg = xr.concat(all_diff, dim="models").mean(
@@ -2091,10 +2998,12 @@ for var in ["Temperature", "Precipitation"]:
                         all_vars_p = all_diffs_avg
                         all_vars_local_p = all_diffs_avg_local
                         all_model_diffs_avg_p = all_model_diffs_avg
+                        all_member_diff_p = all_member_diffs
                     elif var =="Temperature":
                         all_vars_t = all_diffs_avg
                         all_vars_local_t = all_diffs_avg_local
                         all_model_diffs_avg_t = all_model_diffs_avg
+                        all_member_diff_t = all_member_diffs
                     
                 
 
@@ -2118,7 +3027,7 @@ figsize = (18.15,10) #based on aspect ratio of global and zoomed
 
 fig, axes = plt.subplot_mosaic(layout, subplot_kw={'projection': ccrs.PlateCarree()},
                                figsize=figsize,
-                               gridspec_kw={'wspace': 0.0, 'width_ratios': [2.0, 1.63], 'hspace': 0.2})#,'height_ratios': [1, 1]})
+                               gridspec_kw={'wspace': 0.05, 'width_ratios': [2.0, 1.63], 'hspace': 0.05})#,'height_ratios': [1, 1]})
 axes['A'].set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
 axes['C'].set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
 axes['B'].set_extent([lonmin, lonmax, latmin, latmax], crs=ccrs.PlateCarree())
@@ -2192,34 +3101,68 @@ line_bottom = ConnectionPatch(
 axes['C'].add_artist(line_top)
 axes['C'].add_artist(line_bottom)
 axes['C'].add_patch(bbox2)
+        
+for i, item in enumerate(all_member_diff_p):
+    print(f"Item {i}: type = {type(item)}")
+    
 
-sign_diff_p = xr.concat([np.sign(diff['pr'])
-                      for diff in all_model_diffs_avg_p], dim="models")
-sign_diff_t = xr.concat([np.sign(diff['tas'])
-                      for diff in all_model_diffs_avg_t], dim="models")
-within_threshold_p = (
-    abs(sign_diff_p.mean(dim="models")) > 0.8)
-within_threshold_t = (
-    abs(sign_diff_t.mean(dim="models")) > 0.8)
+# signed_p = [np.sign(diff_p['pr']) for diff_p in all_member_diff_p]
 
-# # Step 3: Combine the conditions to create the final mask
-# within_threshold_p = agreement_on_sign_p.sel(lon=slice(lonmin, lonmax), lat=slice(latmax, latmin))
-# within_threshold_t = agreement_on_sign_t.sel(lon=slice(lonmin, lonmax), lat=slice(latmax, latmin))
-# Step 4: Convert the mask to 2D by removing the singleton 'variable' dimension if needed
-within_threshold_2d_p = within_threshold_p.astype(
-    int).squeeze()
-within_threshold_2d_t = within_threshold_t.astype(
-    int).squeeze()
+# signed_t = [np.sign(diff_t['tas']) for diff_t in all_member_diff_t]
+# # Concatenate along 'members' (existing dim)
+# sign_diff_p = xr.concat(signed_p, dim='members')
+# sign_diff_t = xr.concat(signed_t, dim='members')
 
-# Step 6: Overlay the mask with dots in areas where agreement criteria are met
-axes[indices[1]].contourf(
-    all_diffs_avg_local.lon, all_diffs_avg_local.lat, within_threshold_2d_t,
-    levels=[0.5, 1.5], colors='none', hatches=['////'], transform=ccrs.PlateCarree()
+sign_diff_p = xr.concat(
+    [np.sign(ds['pr']) for ds in all_member_diff_p if isinstance(ds, xr.Dataset) and 'pr' in ds],
+    dim='members'
 )
-axes[indices[3]].contourf(
-    all_diffs_avg_local.lon, all_diffs_avg_local.lat, within_threshold_2d_p,
-    levels=[0.5, 1.5], colors='none', hatches=['////'], transform=ccrs.PlateCarree()
+
+sign_diff_t = xr.concat(
+    [np.sign(ds['tas']) for ds in all_member_diff_t if isinstance(ds, xr.Dataset) and 'tas' in ds],
+    dim='members'
 )
+
+# 2. Subset the region of interest: South Asia (approx.)
+region_bounds = {
+    "lon_min": 60,
+    "lon_max": 109,
+    "lat_min": 22,
+    "lat_max": 52,
+}
+
+sign_diff_p = sign_diff_p.sel(
+    lon=slice(region_bounds["lon_min"], region_bounds["lon_max"]),
+    lat=slice(region_bounds["lat_max"], region_bounds["lat_min"])
+)
+
+sign_diff_t = sign_diff_t.sel(
+    lon=slice(region_bounds["lon_min"], region_bounds["lon_max"]),
+    lat=slice(region_bounds["lat_max"], region_bounds["lat_min"])
+)
+
+# 3. Compute agreement mask: where >80% of members agree on sign
+within_threshold_p = (abs(sign_diff_p.mean(dim="members")) > 0.8)
+within_threshold_t = (abs(sign_diff_t.mean(dim="members")) > 0.8)
+
+# 4. Ensure masks are 2D, squeeze any singleton dimensions
+within_threshold_2d_p = within_threshold_p.astype(int).squeeze()
+within_threshold_2d_t = within_threshold_t.astype(int).squeeze()
+
+# 5. Prepare meshgrid for plotting
+lon2d, lat2d = np.meshgrid(all_diffs_avg_local.lon, all_diffs_avg_local.lat)
+
+# 6. Plotting with contourf and hatching
+for key, mask in zip(["B", "D"], [within_threshold_2d_t, within_threshold_2d_p]):
+    axes[key].contourf(
+        lon2d, lat2d, mask,
+        levels=[0.5, 1.5],
+        colors='none',
+        hatches=['////'],
+        transform=ccrs.PlateCarree()
+    )
+
+
 
 
 """ 3C Add color bar for entire plot"""
@@ -2236,112 +3179,63 @@ cbar_p = fig.colorbar(im_p_l, cax=cbar_ax_p, extend='both')
 
 # Increase distance between colorbar label and colorbar
 cbar_t.ax.yaxis.labelpad = 20
-cbar_t.set_label('∆ Temperature [°C]', size=15)
-cbar_t.ax.tick_params(labelsize=12)
+cbar_t.set_label('∆ Temperature [°C]', size=16)
+cbar_t.ax.tick_params(labelsize=14)
 
 cbar_p.ax.yaxis.labelpad = 20
-cbar_p.set_label('∆ Precipitation [%]', size=15)
-cbar_p.ax.tick_params(labelsize=12)
+cbar_p.set_label('∆ Precipitation [%]', size=16)
+cbar_p.ax.tick_params(labelsize=14)
 
 hedging_patch = mpatches.Patch(
     label='> 80% of model members agree on sign of change', hatch='////', edgecolor='black', facecolor='none')
 
 # Add the custom legend to the plot
-fig.legend(handles=[hedging_patch], loc='lower center', bbox_to_anchor=(0.53, 0), fontsize=12)
+fig.legend(handles=[hedging_patch], loc='lower center', bbox_to_anchor=(0.53, 0.02), fontsize=16)
 
 # if plotsave == 'save':
-o_folder_diff = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/01. Climate data/02. Perturbations/"
+# o_folder_diff = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/01. Climate data/02. Perturbations/"
 
-os.makedirs(f"{o_folder_diff}/", exist_ok=True)
-o_file_name = f"{o_folder_diff}/Mosaic.{var}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.png"
-# plt.savefig(o_file_name, bbox_inches='tight')
+# os.makedirs(f"{o_folder_diff}/", exist_ok=True)
+# o_file_name = f"{o_folder_diff}/Mosaic.{var}.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.png"
+o_file_name = f"{fig_folder}/Mosaic.∆PT.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.png"
+# o_file_name = f"{fig_folder}/01. EGU25/Mosaic.∆PT.{y0}_{ye}_{timeframe}_{diftype}{extra_id}.png" #without hedging
+plt.savefig(o_file_name, bbox_inches='tight')
 
 plt.show()
 
+#%% Cell 6c: Read out values for irrigation
 
-#%% 
-import numpy as np
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
+fig,ax = plt.subplots(figsize=(9,10))
 
-precip_min, precip_max = -20, 20
-temp_min, temp_max = -1.5, 1.5
+scale ="Local"
+variables=["Precipitation","Temperature"]
+short_variables=['pr','tas']
+types=['min','max']
 
-# Grid resolution
-grid_size = 256
-
-# Define corner RGB colors
-color_dry_warm = np.array([1.0, 0.4, 0.0])   # Top-left (Dry + Warm)
-color_dry_cold = np.array([0.6, 0.0, 0.6])   # Bottom-left (Dry + Cold)
-color_wet_warm = np.array([0.6, 1.0, 0.2])   # Top-right (Wet + Warm)
-color_wet_cold = np.array([0.0, 0.4, 1.0])   # Bottom-right (Wet + Cold)
-color_center  = np.array([1.0, 1.0, 1.0])    # Center (Neutral)
-
-# Create continuous colormap
-custom_colormap = np.zeros((grid_size, grid_size, 3))
-for i in range(grid_size):  # Temp (Y)
-    for j in range(grid_size):  # Precip (X)
-        # Normalize to [-1, 1]
-        x = -1 + 2 * j / (grid_size - 1)  # ΔP
-        y = -1 + 2 * i / (grid_size - 1)  # ΔT
-
-        wx = (x + 1) / 2  # 0 to 1
-        wy = (y + 1) / 2
-
-        top = (1 - wx) * color_dry_warm + wx * color_wet_warm
-        bottom = (1 - wx) * color_dry_cold + wx * color_wet_cold
-        color = (1 - wy) * bottom + wy * top
-
-        # Radial fade to white at center
-        r = np.sqrt(x**2 + y**2)
-        fade = np.clip(1 - r, 0, 1)
-        color = (1 - fade) * color + fade * color_center
-
-        custom_colormap[i, j] = color
-
-# Generate mock ΔT and ΔP data
-lon = np.linspace(-180, 180, 200)
-lat = np.linspace(-90, 90, 100)
-lon2d, lat2d = np.meshgrid(lon, lat)
-delta_temp = np.random.uniform(temp_min, temp_max, size=lon2d.shape)
-delta_precip = np.random.uniform(precip_min, precip_max, size=lon2d.shape)
-
-# Normalize to [0, grid_size - 1]
-rows = ((delta_temp - temp_min) / (temp_max - temp_min) * (grid_size - 1)).astype(int)
-cols = ((delta_precip - precip_min) / (precip_max - precip_min) * (grid_size - 1)).astype(int)
-rows = np.clip(rows, 0, grid_size - 1)
-cols = np.clip(cols, 0, grid_size - 1)
-
-# Apply colormap
-colored_map = custom_colormap[rows, cols]
-
-# Plotting
-fig = plt.figure(figsize=(14, 6))
-
-# Map
-ax_map = fig.add_subplot(1, 2, 1, projection=ccrs.PlateCarree())
-ax_map.imshow(colored_map, extent=[-180, 180, -90, 90], origin='lower', transform=ccrs.PlateCarree())
-ax_map.coastlines()
-ax_map.set_title("Smooth 2D Color Blend")
-
-# Legend
-ax_legend = fig.add_subplot(1, 2, 2)
-ax_legend.imshow(custom_colormap, origin='lower',
-                 extent=[precip_min, precip_max, temp_min, temp_max],
-                 aspect='auto')
-ax_legend.set_xlabel("ΔPrecipitation")
-ax_legend.set_ylabel("ΔTemperature")
-ax_legend.set_title("Smooth 2D Color Legend")
-ax_legend.grid(True)
-
-plt.tight_layout()
-plt.show()
+for v,var in enumerate(variables):
+    o_folder = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/08. Processed Perturbations Plots"
+    # os.makedirs(o_folder, exist_ok=True)
+    o_file=f"{o_folder}/{scale}_{var}_processed.nc"
+    svar = short_variables[v]
+    
+    with xr.open_dataset(o_file) as ds:
+        print(svar)
+        for m in range(2):
+            if m==0:
+                val_max = ds[svar].max().values
+            else:
+                val_max = ds[svar].min().values
+            max_loc = ds[svar].where(ds[svar] == val_max, drop=True)
+            # Extract coordinates of the maximum value
+            lon_max = max_loc.lon.values[0]
+            lat_max = max_loc.lat.values[0]
+            print(types[m],svar,':', val_max, 'lon:', lon_max,'lat:',  lat_max)
 
 
    
-#%% Presentation plot: Increased Irrigation Area
+#%% Cell 7b: Presentation plot - Increased Irrigation Area
 
-folder_data=o_folder_data = ("/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/Irrigation_Data_Table.csv"
+folder_data=("/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/Irrigation_Data_Table.csv"
                        )
 
 inputdata=pd.read_csv(folder_data, header=0, index_col="Year")
@@ -2391,8 +3285,11 @@ plt.ylabel("Area Equipped for Irrigation (Mha)")
 plt.title("Global Irrigation Expansion Over Time")
 # plt.legend(loc="upper left")
 
+plt.savefig(f"{fig_folder}/00. Appendix/Timeline_Irrigation_Increase.png")
 # Show the plot
 plt.show()
+
+
 
     
     
@@ -2403,6 +3300,122 @@ plt.show()
     
     
     
-    
-    
+
+
+#%% Cell 9: Fact check data bias corrected
+
+src = "/Users/magaliponds/Documents/00. Programming/03. Modelled perturbation-glacier interactions - R13-15 A+5km2/summary"
+
+fig,axes = plt.subplots(2,1,figsize=(10,5), sharex=True)
+axes=axes.flatten()
+
+
+ls = ["--", "-.", ":"]
+colors_ssps=["cornflowerblue","tomato"]
+for m in range(4):
+    for s, ssp in enumerate(["126","370"]):
+        if m>0:
+            ptb =  xr.open_dataset(f"{src}/climate_input_data_SSP{ssp}_IRR.00{m}.nc")
+            ptb = ptb.sel(rgi_id="RGI60-15.10342")
+            smoothed_T = ptb.rolling(time=5, center=True).mean()
+            smoothed_P = ptb
+            axes[0].plot(smoothed_T.time, smoothed_T.temp, label=f"CESM2.00{m}, ssp{ssp}", ls=ls[m-1], color=colors_ssps[s], lw=1)
+            axes[0].set_title("Temperature")
+            axes[1].plot(smoothed_P.time, smoothed_P.prcp, ls=ls[m-1], color=colors_ssps[s], lw=1)
+            axes[1].set_title("Precipitation")
+            
+
+ptb =  xr.open_dataset(f"{src}/climate_input_data_historical.nc")
+ptb = ptb.sel(rgi_id="RGI60-15.10342")
+smoothed_T = ptb.rolling(time=5, center=True).mean()
+smoothed_P = ptb
+axes[0].plot(smoothed_T.time, smoothed_T.temp, label="Historical (W5E5)", ls=":", color="k", lw=2)
+axes[0].set_title("Temperature")
+axes[1].plot(smoothed_P.time, smoothed_P.prcp, ls=":", color="k",lw=2)
+axes[1].set_title("Precipitation")
+axes[0].text(1981,10,"IRR-experiment")
+axes[1].text(1981,1500,"IRR-experiment")
+plt.subplots_adjust(hspace=0.3)
+
+plt.xlim(1980,2015)
+fig.legend(ncols=3, loc='lower center', bbox_to_anchor=(0.5,-0.1))
+plt.show()
+
+plt.savefig(f"{fig_folder}/00. Appendix/Bias_correction_check_irr.png")
+
+#%% Cell 9b: create plot for noi
+
+src = "/Users/magaliponds/Documents/00. Programming/03. Modelled perturbation-glacier interactions - R13-15 A+5km2/summary"
+
+fig,axes = plt.subplots(2,1,figsize=(10,5), sharex=True)
+axes=axes.flatten()
+
+ls = ["-", "-", "-"]
+colors_ssps=["cornflowerblue","tomato"]
+colors_ssps_no_bias=["turquoize","orange"]
+for m in range(4):
+    for s, ssp in enumerate(["126","370"]):
+        if m>0:
+            ptb =  xr.open_dataset(f"{src}/climate_input_data_SSP{ssp}_NOI.00{m}.nc")
+            ptb = ptb.sel(rgi_id="RGI60-15.10342")
+            smoothed_T = ptb.rolling(time=5, center=True).mean()
+            smoothed_P = ptb
+            axes[0].plot(smoothed_T.time, smoothed_T.temp, label=f"CESM2.00{m}, ssp{ssp}", ls=ls[m-1], color=colors_ssps[s], lw=1)
+            axes[0].set_title("Temperature")
+            axes[1].plot(smoothed_P.time, smoothed_P.prcp, ls=ls[m-1], color=colors_ssps[s], lw=1)
+            axes[1].set_title("Precipitation")
+            
+
+ptb =  xr.open_dataset(f"{src}/climate_input_data_historical.nc")
+ptb = ptb.sel(rgi_id="RGI60-15.10342")
+smoothed_T = ptb.rolling(time=5, center=True).mean()
+smoothed_P = ptb
+axes[0].plot(smoothed_T.time, smoothed_T.temp, label="Historical (W5E5)", ls=":", color="k", lw=2)
+axes[0].set_title("Temperature")
+axes[1].plot(smoothed_P.time, smoothed_P.prcp, ls=":", color="k",lw=2)
+axes[1].set_title("Precipitation")
+axes[0].text(1981,10,"NOI-experiment")
+axes[1].text(1981,1450,"NOI-experiment")
+plt.subplots_adjust(hspace=0.3)
+
+plt.xlim(1980,2015)
+fig.legend(ncols=3, loc='lower center', bbox_to_anchor=(0.5,-0.1))
+# plt.show()
+
+
+colors_ssps_no_bias=["darkcyan","orange", "green"]
+for m in range(4):
+    for s, ssp in enumerate(["126","370"]):
+        if m>0:
+            ptb =  xr.open_dataset(f"{src}/climate_input_data_SSP{ssp}_NOI.00{m}_noi_bias.nc")
+            ptb = ptb.sel(rgi_id="RGI60-15.10342")
+            smoothed_T = ptb.rolling(time=5, center=True).mean()
+            smoothed_P = ptb
+            axes[0].plot(smoothed_T.time, smoothed_T.temp, label=f"CESM2.00{m}, ssp{ssp}, noi bias", ls=ls[m-1], color=colors_ssps_no_bias[s], lw=1)
+            axes[0].set_title("Temperature")
+            axes[1].plot(smoothed_P.time, smoothed_P.prcp, ls=ls[m-1], color=colors_ssps_no_bias[s], lw=1)
+            axes[1].set_title("Precipitation")
+            
+    if m==1:
+        ptb =  xr.open_dataset(f"{src}/climate_input_data_historical_noi_CESM2.00{m}.nc")
+        ptb = ptb.sel(rgi_id="RGI60-15.10342")
+        smoothed_T = ptb.rolling(time=5, center=True).mean()
+        smoothed_P = ptb
+        axes[0].plot(smoothed_T.time, smoothed_T.temp, label="Historical (W5E5), noi bias", ls=":", color="k", lw=2)
+        axes[0].set_title("Temperature")
+        axes[1].plot(smoothed_P.time, smoothed_P.prcp, ls=":", color=colors_ssps_no_bias[2],lw=2)
+        axes[1].set_title("Precipitation")
+        # axes[0].text(1981,10,"IRR-experiment")
+        # axes[1].text(1981,1500,"IRR-experiment")
+plt.subplots_adjust(hspace=0.3)
+        
+plt.xlim(1980,2015)
+fig.legend(ncols=3, loc='lower center', bbox_to_anchor=(0.5,-0.2))
+
+plt.show()
+plt.savefig(f"{fig_folder}/00. Appendix/Bias_correction_check_noirr.png")
+
+        
+
+  
     

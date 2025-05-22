@@ -17,7 +17,7 @@ from matplotlib.lines import Line2D
 import oggm
 from oggm import utils, cfg, workflow, tasks, DEFAULT_BASE_URL, graphics, global_tasks
 from oggm.core import massbalance, flowline
-from oggm.utils import floatyear_to_date, hydrodate_to_calendardate
+from oggm.utils import floatyear_to_date, hydrodate_to_calendardate,compile_glacier_statistics
 from oggm.sandbox import distribute_2d
 from oggm.sandbox.edu import run_constant_climate_with_bias
 import geopandas as gpd
@@ -91,8 +91,8 @@ for filename in os.listdir(wd_path_pkls):
         with open(file_path, 'rb') as f:
             gdir = pickle.load(f)
             gdirs_3r.append(gdir)
-# %% Cell 1b: Load gdirs_3r from pkl (fastest way to get started)
-wd_path_pkls = f'{wd_path}/pkls_subset/'
+# %% Cell 1b: Load gdirs_3r_a5 from pkl (fastest way to get started)
+wd_path_pkls = f'{wd_path}/pkls_subset_success/'
 
 gdirs_3r_a5 = []
 for filename in os.listdir(wd_path_pkls):
@@ -111,9 +111,9 @@ for filename in os.listdir(wd_path_pkls):
 rgi_data = []
 count = 0
 # Iterate through each glacier directory
-for gdir in gdirs_3r:
+for gdir in gdirs_3r_a5:
     count += 1
-    print((count*100)/len(gdirs_3r))  # show progress in percentage
+    print((count*100)/len(gdirs_3r_a5))  # show progress in percentage
     try:
         # Create a temporary dictionary to hold data for this glacier
         temp_data = {
@@ -140,27 +140,27 @@ for gdir in gdirs_3r:
 
 # Create DataFrame if data was collected
 if rgi_data:
-    df_3r = pd.DataFrame(rgi_data)
+    df_3r_a5 = pd.DataFrame(rgi_data)
 else:
     # Empty DataFrame if no data
-    df_3r = pd.DataFrame(columns=['rgi_id', 'rgi_region', 'rgi_subregion', 'cenlon', 'cenlat',
+    df_3r_a5 = pd.DataFrame(columns=['rgi_id', 'rgi_region', 'rgi_subregion', 'cenlon', 'cenlat',
                                   'rgi_date', 'rgi_area_km2', 'rgi_volume_km3'])
 
 # Output the DataFrame
 
-# df_3r.to_csv(f"{wd_path}/masters/master_gdirs_r3_rgi_date_A_V.csv")
-print(df_3r.head)
+df_3r_a5.to_csv(f"{wd_path}/masters/master_gdirs_r3_a5_rgi_date_A_V.csv")
+print(df_3r_a5.head)
 
 
 # %% Cell 3: Update the master dataset with RGI id
 
-df_3r = pd.read_csv(f"{wd_path}/masters/master_gdirs_r3_a5_rgi_date_A_V.csv")
+df_3r_a5 = pd.read_csv(f"{wd_path}/masters/master_gdirs_r3_a5_rgi_date_A_V.csv")
 
 subregions_path = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/02. QGIS/RGI outlines/GTN-G_O2regions_selected.shp"
 subregions = gpd.read_file(subregions_path)
 subregions = subregions[['o2region', 'full_name']]
 subregions = subregions.rename(columns={'o2region': 'rgi_subregion'})
-df_complete = pd.merge(df_3r, subregions, on='rgi_subregion')
+df_complete = pd.merge(df_3r_a5, subregions, on='rgi_subregion')
 
 new_order = ['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
              'rgi_area_km2', 'rgi_volume_km3']
@@ -179,8 +179,12 @@ data = []
 data_cf = []
 rgi_ids = []
 labels = []
+rgi_ids_sel=[]
 
-members = [1, 3, 4, 6, 1, 3]
+members = [1, 3, 4, 6, 4]
+models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
+
+
 # Iterate over models and members, collecting data for boxplots
 # only take the model shortlist as members are handled separately
 for m, model in enumerate(models_shortlist):
@@ -194,10 +198,17 @@ for m, model in enumerate(models_shortlist):
         # Load the CSV file into a DataFrame and convert to xarray
         mb = pd.read_csv(i_path, index_col=0).to_xarray()
         mb_cf = pd.read_csv(i_path_cf, index_col=0).to_xarray()
+        
+        if sample_id=="IPSL-CM6.000":
+            rgi_ids_sel = mb_cf.rgi_id.values
+        else:
+            mb_cf = mb_cf.where(mb_cf.rgi_id.isin(rgi_ids_sel), drop=True)
 
         # Collect B values for each model and member
+        print(sample_id, len(mb.B.values), len(mb_cf.B.values))
         data.append(mb.B.values)
         data_cf.append(mb_cf.B.values)
+        
 
         # Store RGI IDs only for the first model/member
         if m == 0 and member == 0:
@@ -206,8 +217,10 @@ for m, model in enumerate(models_shortlist):
         labels.append(sample_id)
 
 i_path_base = os.path.join(sum_dir, 'specific_massbalance_mean_W5E5.000.csv')
-mb_base = pd.read_csv(i_path_base, index_col=0)
-base_array = np.array(mb_base)
+mb_base = pd.read_csv(i_path_base)
+mb_base_cf = mb_base[mb_base['rgi_id'].isin(rgi_ids_sel)]
+base_array = np.array(mb_base.B)
+base_array_cf = np.array(mb_base_cf)
 
 # Convert the list of data into a NumPy array and transpose it
 data_array = np.array(data)
@@ -217,7 +230,7 @@ reshaped_data = data_array.T
 reshaped_data_cf = data_array_cf.T
 # Create a DataFrame for the reshaped data
 df = pd.DataFrame(reshaped_data, index=rgi_ids, columns=np.repeat(labels, 1))
-df_cf = pd.DataFrame(reshaped_data_cf, index=rgi_ids,
+df_cf = pd.DataFrame(reshaped_data_cf, index=rgi_ids_sel,
                      columns=np.repeat(labels, 1))
 
 df['B_irr'] = base_array
@@ -369,23 +382,27 @@ for region in regions:
     new_data = pd.DataFrame({
         # Repeat the rgi_id for each B value
         'rgi_id': hugo_ds['rgi_id'].values,
+        'Area': hugo_ds['Area'].values,
         # Assuming this is a 1D array or single value
-        'B': hugo_ds['B'].values
+        'B': hugo_ds['B'].values,
+        'errB': hugo_ds['errB'].values
 
     })
 
     # Concatenate the new data into the main DataFrame
     all_data = pd.concat([all_data, new_data], ignore_index=True)
 
+all_data.to_csv(
+    f"{wd_path}masters/master_hugo_only_all_glaciers_13_14_15.csv")
 master = pd.read_csv(
     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B.csv")
 
-hugo_ds = pd.merge(master, all_data, on='rgi_id', how='left')
-hugo_ds = hugo_ds.rename(columns={'B': 'B_hugo'})
-hugo_ds.to_csv(
+hugo_ds_tot = pd.merge(master, all_data, on='rgi_id', how='left')
+hugo_ds_tot = hugo_ds_tot.rename(columns={'B': 'B_hugo','errB': 'errB_hugo'})
+hugo_ds_tot.to_csv(
     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
 
-hugo_df = hugo_ds[['rgi_id', 'B_hugo']]
+hugo_df = hugo_ds_tot[['rgi_id', 'B_hugo']]
 
 
 #%% Add Comitted mass loss for boxplots new master ds
@@ -469,5 +486,156 @@ for time_sel in [1985,2014]:
     
     merged = pd.merge(merged, all_com_noi_df, on=['rgi_id', 'sample_id'], how='left')
 merged.to_csv(
-    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv")
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv)"#%% Add Comitted mass loss for boxplots new master ds
+
+
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
+# df = pd.read_csv(
+#     f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo.csv")
+master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model averages ending with 0 except for IPSL
+               (df['sample_id'].str.startswith('IPSL'))]
+
+members_averages = [2, 3,  3 ,5]
+models_shortlist = ["E3SM", "CESM2",  "NorESM",  "CNRM"]
+filepath=f"climate_run_output_baseline_W5E5.000_comitted_random.nc"
+
+# filepath_start=f"climate_run_output_baseline_W5E5.000.nc"
+
+#open and add comitted mass loss 
+baseline_path = os.path.join(
+    wd_path, "summary", filepath)
+baseline = xr.open_dataset(baseline_path)
+baseline_end=baseline.sel(time=2264) #use final year
+print(len(baseline_end.volume))
+
+com = baseline_end[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+com = com.rename(columns={'volume': 'V_2264_irr'})
+
+
+merged = pd.merge(master_ds, com, on=['rgi_id'], how='left')
+
+start_baseline = xr.open_dataset(os.path.join( wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc"))
+
+for time_sel in [1985,2014]:
+    #open and add initial simulation volume 
+    baseline_start=start_baseline.sel(time=time_sel) #use initial year
+    start = baseline_start[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+    start = start.rename(columns={'volume': f'V_{time_sel}_irr'})
+    merged = pd.merge(merged, start, on=['rgi_id'], how='left')
+
+all_com_noi = []
+for m, model in enumerate(models_shortlist): #Load the data for other models and calculate respective loss for each 
+    for j in range(members_averages[m]):
+        sample_id = f"{model}.00{j + 1}" if members_averages[m] > 1 else f"{model}.000"
+        filepath = f'climate_run_output_perturbed_{sample_id}_comitted_random.nc'
         
+        noirr_path = os.path.join(
+            wd_path, "summary", filepath)
+        noirr_all = xr.open_dataset(noirr_path)
+        noirr_all=noirr_all.sel(time=2264) #use final year
+        print(len(noirr_all.volume))
+
+        com_noi = noirr_all[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+        com_noi = com_noi.rename(columns={'volume': 'V_2264_noirr'})
+        com_noi['sample_id']=sample_id
+        all_com_noi.append(com_noi) 
+    
+all_com_noi_df = pd.concat(all_com_noi, ignore_index=True)
+
+merged = pd.merge(merged, all_com_noi_df, on=['rgi_id', 'sample_id'], how='left')
+merged.to_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv")
+
+for time_sel in [1985,2014]:
+    all_com_noi = []
+    for m, model in enumerate(models_shortlist): #Load the data for other models and calculate respective loss for each 
+        for j in range(members_averages[m]):
+            sample_id = f"{model}.00{j + 1}" if members_averages[m] > 1 else f"{model}.000"
+            filepath = f'climate_run_output_perturbed_{sample_id}.nc'
+            noirr_path = os.path.join(
+                wd_path, "summary", filepath)
+            noirr_all = xr.open_dataset(noirr_path)
+            noirr_all=noirr_all.sel(time=time_sel) #use final year
+            print(len(noirr_all.volume))
+            com_noi = noirr_all[['volume']].to_dataframe().reset_index()[['rgi_id', 'volume']]
+            com_noi = com_noi.rename(columns={'volume': f'V_{time_sel}_noirr'})
+            com_noi['sample_id']=sample_id
+            all_com_noi.append(com_noi) 
+        
+    all_com_noi_df = pd.concat(all_com_noi, ignore_index=True)
+    
+    merged = pd.merge(merged, all_com_noi_df, on=['rgi_id', 'sample_id'], how='left')
+merged.to_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom_noIPSL.csv")
+ 
+
+
+
+#%% Calculate % of glacier area and volume included in subset
+
+cfg.PARAMS['use_multiprocessing'] = True
+cfg.PARAMS['core'] = 9 # 🔧 set number of cores
+
+def main():
+    cfg.PARAMS['use_multiprocessing']=False
+    
+    # Compile the stats into a single DataFrame
+    ofilesuffix='gdir_3r_a5_share_VA_analysis.csv'
+    opath=f'{wd_path}/masters/'
+    df = compile_glacier_statistics(gdirs_3r, path=opath, filesuffix=ofilessufix)
+    
+    # Define thresholds
+    thresholds = [5, 2, 1]
+    summary_data = []
+    
+    # Total area and volume (for % calculation)
+    total_area = df['area_km2'].sum()
+    total_volume = df['volume_km3'].sum()
+    
+    for t in thresholds:
+        sub = df[df['area_km2'] > t]
+        n_glaciers = len(sub)
+        area = sub['area_km2'].sum()
+        volume = sub['volume_km3'].sum()
+        summary_data.append({
+            'Threshold (A > km²)': t,
+            '# Glaciers': n_glaciers,
+            'Total Area (km²)': area,
+            'Area % of Total': area / total_area * 100,
+            'Total Volume (km³)': volume,
+            'Volume % of Total': volume / total_volume * 100
+        })
+    
+    # Create summary table
+    summary_df = pd.DataFrame(summary_data)
+    
+    # Display the result
+    import ace_tools as tools; tools.display_dataframe_to_user(name="Glacier Area Threshold Summary", dataframe=summary_df)
+if __name__ == '__main__':
+    multiprocessing.set_start_method('spawn', force=True)
+    main()        
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

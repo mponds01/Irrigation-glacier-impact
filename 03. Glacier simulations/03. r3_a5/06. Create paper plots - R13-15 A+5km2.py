@@ -85,18 +85,17 @@ xkcd_colors = clrs.XKCD_COLORS
 
 colors = {
     "irr": ["#000000", "#555555"],  # Black and dark gray
-    # Darker brown and golden yellow for contrast
-    # "noirr": ["#f5bf03","#fbeaac"],#["#8B5A00", "#D4A017"], #fdde6c
     "noirr": ["dimgrey","darkgrey"],#["#8B5A00", "#D4A017"], #fdde6c
-    # "noirr_com": ["#E3C565", "#F6E3B0"],  # Lighter, distinguishable tan shades #
-    # "noirr_com": ["#380282", "#ceaefa"],  # Lighter, distinguishable tan shades #
-    "noirr_com": ["#FFC107", "#FFF3CD"],  # Lighter, distinguishable tan shades #
-    "irr_com": ["#fe4b03", "#D0D0D0"],  # Light gray, no change
-    # "irr_com": ["#B5B5B5", "#D0D0D0"],  # Light gray, no change
-
+    # "noirr_com": ["#FFC107", "#FFF3CD"],  # Lighter, distinguishable tan shades #
+    # "irr_com": ["#fe4b03", "#D0D0D0"],  # Light gray, no change
+    # "noirr_com": ["#FFA500", "#FFD580"],
+    # "irr_com": ["#00796B", "#388E3C"],    # Teal and deep green (distinct from SSPs)
+    # "noirr_com": ["#80CBC4", "#A5D6A7"],  # Light turquoise and mint
+    "irr_com": ["#A0522D", "#BF6C38"],     # Dry, earthy rust tones
+    "noirr_com": ["#E6A87D", "#F3D4B3"],   # Muted peach and tan
     "cf": ["#004C4C", "#40E0D0"],
     "cf_com": ["#008B8B", "#40E0D0"],
-    "cline": ["dimgrey", '#FFC107']
+    "cline": ["dimgrey", '#E6A87D']
 }
 
 region_colors = {13: 'blue', 14: 'crimson', 15: 'orange'}
@@ -1907,22 +1906,48 @@ ax.set_xlim(0, 3*15+5)
 ax.tick_params(labelsize=12)
 
 
+
+# Include the panel plot
 ax.axhline(y=0, color='grey', linestyle='--', linewidth=1, zorder=0)
 
 output_nc_path = os.path.join(wd_path, "masters", "master_comitted_volume_timeseries_individual_member_noIPSL.nc")
 tlines = xr.open_dataset(output_nc_path)
-ax_inset = inset_axes(ax, width="24%", height="28%", loc='lower left',bbox_to_anchor=(286,130,1800, 700))  # width/height can be % or float
-ax_inset.tick_params(axis='both', labelsize=12)
-ax_inset.yaxis.tick_right()             # Move tick labels to the right
-ax_inset.yaxis.set_label_position("right")
+ax_inset = inset_axes(ax, width="24%", height="32%", loc='lower left',bbox_to_anchor=(286,100,1800, 700))  # width/height can be % or float
+
 
 for m,model in enumerate(models_shortlist):
+    member_series = []
+    times = None
+    
     for x in range(members_averages[m]):
         if x>0:
             ax_inset.plot(
                 tlines.sel(scenario='committed', model=model, member=x, experiment="NoIrr").time.values,
-               tlines.sel(scenario='committed', model=model, member=x,experiment="NoIrr").volume_percent-100, ls=':', lw=1, color=colors['noirr_com'][0]
+               tlines.sel(scenario='committed', model=model, member=x,experiment="NoIrr").volume_percent-100, ls=':', lw=1, color=colors['noirr_com'][0], zorder=1
             )
+            
+            data = tlines.sel(scenario='committed', model=model, member=x, experiment="NoIrr")
+            volume = data.volume_percent - 100
+            member_series.append(volume)
+            if times is None:
+                times = data.time.values
+            
+    if member_series:
+        stacked = xr.concat(member_series, dim='member')
+        q25 = stacked.quantile(0.25, dim='member')
+        q75 = stacked.quantile(0.75, dim='member')
+
+        # Fill between 25th and 75th percentile
+        ax_inset.fill_between(
+            times, q25, q75,
+            color=colors['noirr_com'][1],
+            alpha=0.7,
+            zorder=0
+        )
+                
+                
+                
+                
 ax_inset.plot(
 tlines.sel(scenario='committed', model="W5E5", member=0, experiment="Irr").time.values,
 tlines.sel(scenario='committed', model="W5E5", member=0,experiment="Irr").volume_percent-100, ls='-', lw=2, color=colors['irr_com'][0]
@@ -1930,15 +1955,46 @@ tlines.sel(scenario='committed', model="W5E5", member=0,experiment="Irr").volume
 
 ax_inset.plot(
 tlines.sel(scenario='committed', model="avg", member=0, experiment="NoIrr").time.values,
-tlines.sel(scenario='committed', model="avg", member=0,experiment="NoIrr").volume_percent-100, ls='--', lw=2, color=colors['noirr_com'][0]
+tlines.sel(scenario='committed', model="avg", member=0,experiment="NoIrr").volume_percent-100, ls='--', lw=2, color=colors['noirr_com'][0], zorder=0
 )
-ax_inset.set_title("Transient evolution", fontsize=12)
-ax_inset.set_xticks([2014, 2139, 2264])
-ax_inset.set_xticklabels(['0', '125', '250'])
+# ax_inset.text(0.2, 0.95, "Committed evolution", fontsize=12,
+#               transform=ax_inset.transAxes, va='top', ha='left')
+# Set axis ticks and labels
+ax_inset.set_xlim(2014,2264)
+ax_inset.set_xticks([2114, 2214])
+ax_inset.set_xticklabels(['100', '200 yrs'])
 
-rect_x = p + v_space_hist_all -1.1
+ax_inset.set_ylim(-30,0)
+ax_inset.set_yticks([ -10, -20])#, -30])
+ax_inset.set_yticklabels([ '-10%', '-20%'])#, '-30%'])
+# ax_inset.yaxis.label.set_zorder(10)
+
+# Tick marks and labels setup
+ax_inset.tick_params(axis='both', which='both',
+                     direction='in',     # tick lines point inside
+                     length=5,           # visible tick length
+                     top=False, bottom=True, left=False, right=True,
+                     labelsize=12)
+
+# Tick labels on right side of y-axis
+ax_inset.yaxis.set_ticks_position('left')
+ax_inset.yaxis.set_label_position("left")
+
+ax_inset.grid(True, axis='both', which='major', linestyle=':', linewidth=0.5, color='gray')
+
+for label in ax_inset.get_xticklabels():
+    label.set_verticalalignment('top')
+    label.set_y(0.2)  # smaller = closer to axis line (inside)
+
+# Shift y-axis labels left into the plot
+for label in ax_inset.get_yticklabels():
+    label.set_horizontalalignment('left')
+    label.set_x(0.05)  # smaller = closer to axis line (inside)
+    
+
+rect_x = p + v_space_hist_all + 1.05
 rect_y = -25
-rect_w=4.5
+rect_w=2.25
 rect_height=30
 
 square = mpatches.Rectangle((rect_x, rect_y), rect_w, rect_height,
@@ -1999,7 +2055,431 @@ plt.savefig(
 plt.show()      
 
 
+#%% Cell 4f: Comitted mass loss boxplots totals - 1 plot, Marzeion edit
 
+# Function to plot the boxplots
+ylim=30
+y = ylim-10
+x=1.3
+
+def plot_boxplot(data, position, label, color, colorline, alpha, is_noirr):
+    if position<5:
+        width=2
+    else:
+        width=1
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    median = np.median(data)
+    iqr_height = q3 - q1
+    lower_bound = q1 - 1.5 * iqr_height
+    upper_bound = q3 + 1.5 * iqr_height
+    filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
+    if len(filtered_data) > 0:
+        lower_whisker = filtered_data.min()
+        upper_whisker = filtered_data.max()
+    else:
+        lower_whisker = q1
+        upper_whisker = q3
+
+    # Draw the shaded IQR rectangle
+    rect = plt.Rectangle((position - width / 2, q1),
+                         width, iqr_height,
+                         facecolor=color, alpha=alpha,
+                         edgecolor='none', zorder=1)
+    ax.add_patch(rect)
+    
+    rect = plt.Rectangle((position - width / 2, lower_whisker),
+                             width, upper_whisker - lower_whisker,
+                             facecolor=color, alpha=0.4, edgecolor='none', zorder=0)
+    ax.add_patch(rect)
+
+    # Draw the median line
+    ax.plot([position - width / 2 + 0.09, position + width / 2 -0.09],
+            [median, median],
+            color=colorline, linewidth=3, zorder=2)
+
+    # Optional styling
+    ax.tick_params(labelsize=10)
+    if p > 0:
+        fontweight = "medium"
+    else:
+        for spine in ax.spines.values():
+            spine.set_linewidth(2)
+        fontweight = "bold"
+
+    ax.set_ylim(-75, ylim)
+
+    return rect
+
+
+
+
+regions = [13, 14, 15]
+subregions = [9, 3, 3]
+
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg_B_hugo_Vcom.csv")
+
+master_ds = df[(~df['sample_id'].str.endswith('0')) |  # Exclude all the model averages ending with 0 except for IPSL
+               (df['sample_id'].str.startswith('IPSL'))]
+
+master_ds_tot_vol = master_ds.groupby(['rgi_subregion', 'sample_id'], as_index=False).agg({  # calculate the 14 member average for noirr and delta, for irr the first value can be taken as they are all the same
+    'V_2264_noirr': 'sum',
+    'V_2264_irr': 'sum',
+    'V_2014_noirr': 'sum',
+    'V_2014_irr': 'sum',
+    'V_1985_irr': 'sum',
+    'rgi_id': lambda _: "regional total",
+    # lamda is anonmous functions, returns 11 member average
+    # take first value for all columns that are not in the list
+    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_noirr', 'V_2264_irr','V_2014_noirr', 'V_2014_irr','V_1985_irr', 'sample_id', 'rgi_id']} #take first for rgi_id, rgi_region, full_name, cenlon, cenlat, rgi_date, rgi_areakm2
+})
+
+master_ds_tot_vol['V_2264_noirr_delta'] = ((master_ds_tot_vol['V_2264_noirr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr'])*100
+master_ds_tot_vol['V_2264_irr_delta'] = (master_ds_tot_vol['V_2264_irr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol['V_2014_noirr_delta'] = (master_ds_tot_vol['V_2014_noirr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol['V_2014_irr_delta'] = (master_ds_tot_vol['V_2014_irr']-master_ds_tot_vol['V_1985_irr'])/master_ds_tot_vol['V_1985_irr']*100
+master_ds_tot_vol = master_ds_tot_vol[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 
+                       'V_2264_irr','V_2264_noirr','V_2014_irr','V_2014_noirr', 'V_1985_irr','V_2264_irr_delta','V_2264_noirr_delta','V_2014_irr_delta','V_2014_noirr_delta']]
+
+
+master_ds = master_ds[master_ds['V_2264_irr'].notna()]
+master_ds_tot_vol=master_ds_tot_vol[master_ds_tot_vol['V_2264_irr'].notna()]
+# master_ds_area_weighted=master_ds_area_weighted[master_ds_area_weighted['V_2264_irr'].notna()]
+
+use_weights = True
+# v_space_noi2 = 1.9  # Vertical space between irr and noirr boxplots
+v_space_com = 1.6  # Vertical space between irr and noirr boxplots
+v_space_hist = 0.4  # Vertical space between irr and noirr boxplots
+v_space_com_all = 2.3  # Vertical space between irr and noirr boxplots
+v_space_hist_all = 0.1  # Vertical space between irr and noirr boxplots
+# v_space_irr1 = 0.1  # Vertical space between irr and noirr boxplots
+
+# Storage for combined data
+all_noirr, all_irr = [], []
+position_counter = 1
+
+cumulative_index = 14
+
+# Initialize plot
+fig = plt.figure(figsize=(16, 6))
+gs = gridspec.GridSpec(1, 16, width_ratios=[1.5] + [1]*15)  # First axis twice as wide
+
+# axes = [fig.add_subplot(gs[i]) for i in range(16)]
+fig, axes = plt.subplots(1,1, figsize=(16, 6), sharey=True)
+print(axes)
+# axes = axes.flatten()
+p=5.4
+tick_positions=[]
+tick_labels=[]
+mean_list=[]
+
+# Example usage: Main loop through regions and subregions
+for r, region in enumerate((regions)):
+    for sub in range(list((subregions))[r]):
+        # Filter subregion-specific data
+        ax = axes
+        region_id = f"{region}.0{sub+1}"
+        print(region_id)
+       
+
+        subregion_ds = master_ds_tot_vol[master_ds_tot_vol['rgi_subregion'].str.contains(
+            f"{region}-0{sub+1}")]
+
+        # Calculate mean values for Noirr and Irr
+        # noirr_mean = master_ds_area_weighted['V_2264_noirr'][cumulative_index]
+        # irr_mean = master_ds_area_weighted['V_2264_irr'][cumulative_index]
+
+        # Set color and label based on the region
+        try:
+            label = subregion_ds.full_name.iloc[0]
+        except:
+            label = f"{region}-0{sub+1}"
+        
+        if region==13:
+            if sub ==1:
+                label = "Pamir"
+            elif sub ==3:
+                label = "East Tien Shan"
+            elif sub ==5:
+                label = "East Kun Lun"
+        # Plot Noirr and Irr boxplots
+        print(position_counter)
+        print(subregion_ds['V_2014_irr_delta'].iloc[0])
+        print(subregion_ds['V_2264_irr_delta'].iloc[0])
+        
+        tick_positions.append(p +1 )#+ v_space_com -0.2)  # or average of hist + com if you want centered
+        tick_labels.append(label)
+        
+        mean_hist = subregion_ds['V_2014_noirr_delta'].mean()
+
+        mean_com_irr = subregion_ds['V_2264_irr_delta'].mean() 
+        mean_com_noirr = subregion_ds['V_2264_noirr_delta'].mean()   
+        mean_list.append((region_id, mean_com_irr, mean_com_noirr))
+        
+        box_noirr = plot_boxplot(
+            subregion_ds['V_2014_noirr_delta'], p + v_space_hist, label, color=colors['noirr'][1],colorline=colors['cline'][0], alpha=1, is_noirr=True)
+        box_noirr = plot_boxplot( 
+            subregion_ds['V_2264_noirr_delta'], p + v_space_com, label, color=colors['noirr_com'][1], colorline=colors['cline'][1], alpha=1, is_noirr=True)
+        
+        box_irr = ax.scatter([p +
+                               v_space_hist], subregion_ds['V_2014_irr_delta'].iloc[0], color=colors['irr'][0], marker="o", s=60, linewidths=3, zorder=10)
+        box_irr = ax.scatter([p +
+                               v_space_com], subregion_ds['V_2264_irr_delta'].iloc[1], color=colors['irr_com'][0], marker="o", s=60, linewidths=3, zorder=10)
+        # ax.hlines(mean_hist, 
+        #   xmin=p + v_space_hist - 0.5,  # adjust width
+        #   xmax=p + v_space_hist + 0.5,
+        #   linestyles='dotted', 
+        #   color=colors['cline'][0],
+        #   linewidth=3,
+        #   zorder=9)
+        
+        # ax.hlines(mean_com_noirr, 
+        #   xmin=p + v_space_com - 0.5,  # adjust width
+        #   xmax=p + v_space_com + 0.5,
+        #   linestyles='dotted', 
+        #   color=colors['cline'][1],
+        #   linewidth=3,
+        #   zorder=9)
+
+        
+        # Annotate the number of glaciers and delta between the two columns
+        num_glaciers = len(master_ds[master_ds.rgi_subregion==f"{region}-0{sub+1}"][master_ds.sample_id=="IPSL-CM6.000"])
+        
+        # delta = noirr_mean - irr_mean
+
+        # Display number of glaciers and delta
+        initial_volume = round(subregion_ds['V_1985_irr'].iloc[0]*1e-9)
+        # ax.text(p, y, 
+        #          f'{initial_volume}\n({num_glaciers})',  # \nΔ = {delta:.2f}',
+        #          va='center', ha='left', fontsize=12, color='black',
+        #          backgroundcolor="white",  zorder=10)
+        ax.axvline(p-0.5, color='lightgrey', linestyle='--',
+                    linewidth=1, zorder=1) 
+
+        p+=3
+        
+    
+# # Plot overall average boxplots for Irr and Noirr
+p=1.2
+ax = axes
+
+master_ds_hma = master_ds.groupby(['sample_id'], as_index=False).agg({  # calculate the 14 member average for noirr and delta, for irr the first value can be taken as they are all the same
+    'V_2264_noirr': 'sum',
+    'V_2264_irr': 'sum',
+    'V_2014_noirr': 'sum',
+    'V_2014_irr': 'sum',
+    'V_1985_irr': 'sum',
+    **{col: 'first' for col in master_ds.columns if col not in ['V_2264_noirr', 'V_2264_irr','V_2014_noirr', 'V_2014_irr','V_1985_irr']}#,  'rgi_id', 'rgi_subregion','rgi_region']} #take first for rgi_id, rgi_region, full_name, cenlon, cenlat, rgi_date, rgi_areakm2
+})
+
+master_ds_hma['V_2264_noirr_delta'] = ((master_ds_hma['V_2264_noirr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr'])*100
+master_ds_hma['V_2264_irr_delta'] = (master_ds_hma['V_2264_irr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma['V_2014_noirr_delta'] = (master_ds_hma['V_2014_noirr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma['V_2014_irr_delta'] = (master_ds_hma['V_2014_irr']-master_ds_hma['V_1985_irr'])/master_ds_hma['V_1985_irr']*100
+master_ds_hma = master_ds_hma[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                       'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 
+                       'V_2264_irr','V_2264_noirr','V_2014_irr','V_2014_noirr', 'V_1985_irr','V_2264_irr_delta','V_2264_noirr_delta','V_2014_irr_delta','V_2014_noirr_delta']]
+
+
+avg_irr = ax.scatter([p +
+                       v_space_hist_all], master_ds_hma['V_2014_irr_delta'].iloc[0], color=colors['irr'][0], marker="o", s=100, linewidths=4)
+avg_irr = ax.scatter([p +
+                       v_space_com_all], master_ds_hma['V_2264_irr_delta'].iloc[0], color=colors['irr_com'][0], marker="o", s=100, linewidths=4)
+avg_noi_hist = plot_boxplot( master_ds_hma['V_2014_noirr_delta'], p + v_space_hist_all, [
+    "High Mountain Asia"], color=colors['noirr'][1], colorline=colors['cline'][0], alpha=1, is_noirr=True)
+avg_noi_com = plot_boxplot(master_ds_hma['V_2264_noirr_delta'], p + v_space_com_all, [
+    "High Mountain Asia"], color=colors['noirr_com'][1], colorline=colors['cline'][1], alpha=1, is_noirr=True)
+
+
+initial_total_volume = round(master_ds_hma['V_1985_irr'][0]*1e-9)
+# Annotate the number of glaciers for the overall average
+length=len(master_ds[master_ds.sample_id == "CNRM.001"])
+# ax.text(v_space_hist, y, 
+#          f"V:{initial_total_volume}\n(#:{length})",# Display total number of glaciers
+#          va='center', ha='left', fontsize=12, color='black',
+#           backgroundcolor="white", zorder=10)#fontstyle='italic',
+
+mean_hist = master_ds_hma['V_2014_noirr_delta'].mean()
+
+mean_com_irr = master_ds_hma['V_2264_irr_delta'].mean()
+mean_com_noirr = master_ds_hma['V_2264_noirr_delta'].mean()
+mean_list.append(("High Mountain Asia", mean_com_irr, mean_com_noirr))
+
+df_means = pd.DataFrame(mean_list, columns=["subregion", "V_2264_irr_delta","V_2264_noirr_delta"])
+
+df_means.to_csv(f"{wd_path}masters/mean_deltaV_Comitted.csv")
+
+
+# Add a legend for regions, mean (dot), and median (stripe)
+region_legend_patches = [Line2D([0], [0], marker='o', color=colors['irr'][0], linestyle='None', markersize=8, lw=20, label='Historical (W5E5)'),
+                        mpatches.Patch(color=colors['noirr'][1], label='Historical NoIrr'),
+                        Line2D([0], [0], marker='o', color=colors['irr_com'][0], linestyle='None', markersize=8, lw=20, label='Committed (historical)'),
+                        mpatches.Patch(color=colors['noirr_com'][0], label='Committed (Historical NoIrr)'),
+                        # Line2D([0], [0], color='black', linestyle='dashed', linewidth=2, label=f'NoIrr, {len(master_ds_hma)}-member mean')
+                        ]
+
+tick_positions.append(1 + v_space_com)
+tick_labels.append("High\nMountain\nAsia")
+
+# Set tick positions and rotated labels (except HMA)
+ax.set_xticks(tick_positions)
+ax.set_xticklabels(tick_labels, fontsize=14, rotation=30)
+
+# Override HMA rotation to be flat (if needed)
+for label in ax.get_xticklabels():
+    if label.get_text() == "High\nMountain\nAsia":
+        label.set_rotation(0)
+        label.set_fontweight("bold")
+        
+fig.legend(handles=region_legend_patches, loc='upper center',
+          bbox_to_anchor=(0.512, 0.96), ncols=5, fontsize=14,columnspacing=1.5)
+ax.set_ylabel('Volume change (%, vs. 1985 historic)', labelpad=15, fontsize=14)
+fig.subplots_adjust(wspace=0.1)#, hspace=0.1)
+ax.set_xlim(0, 3*15+5)
+ax.tick_params(labelsize=12)
+
+
+
+# Include the panel plot
+ax.axhline(y=0, color='grey', linestyle='--', linewidth=1, zorder=0)
+
+output_nc_path = os.path.join(wd_path, "masters", "master_comitted_volume_timeseries_individual_member_noIPSL.nc")
+tlines = xr.open_dataset(output_nc_path)
+ax_inset = inset_axes(ax, width="24%", height="32%", loc='lower left',bbox_to_anchor=(286,100,1800, 700))  # width/height can be % or float
+
+
+for m,model in enumerate(models_shortlist):
+    member_series = []
+    times = None
+    
+    for x in range(members_averages[m]):
+        if x>0:
+            ax_inset.plot(
+                tlines.sel(scenario='committed', model=model, member=x, experiment="NoIrr").time.values,
+               tlines.sel(scenario='committed', model=model, member=x,experiment="NoIrr").volume_percent-100, ls=':', lw=1, color=colors['noirr_com'][0], zorder=1
+            )
+            
+            data = tlines.sel(scenario='committed', model=model, member=x, experiment="NoIrr")
+            volume = data.volume_percent - 100
+            member_series.append(volume)
+            if times is None:
+                times = data.time.values
+            
+    if member_series:
+        stacked = xr.concat(member_series, dim='member')
+        q25 = stacked.quantile(0.25, dim='member')
+        q75 = stacked.quantile(0.75, dim='member')
+
+        # Fill between 25th and 75th percentile
+        ax_inset.fill_between(
+            times, q25, q75,
+            color=colors['noirr_com'][1],
+            alpha=0.7,
+            zorder=0
+        )
+                
+                
+                
+                
+ax_inset.plot(
+tlines.sel(scenario='committed', model="W5E5", member=0, experiment="Irr").time.values,
+tlines.sel(scenario='committed', model="W5E5", member=0,experiment="Irr").volume_percent-100, ls='-', lw=2, color=colors['irr_com'][0]
+)
+
+ax_inset.plot(
+tlines.sel(scenario='committed', model="avg", member=0, experiment="NoIrr").time.values,
+tlines.sel(scenario='committed', model="avg", member=0,experiment="NoIrr").volume_percent-100, ls='--', lw=2, color=colors['noirr_com'][0], zorder=0
+)
+# ax_inset.text(0.2, 0.95, "Committed evolution", fontsize=12,
+#               transform=ax_inset.transAxes, va='top', ha='left')
+# Set axis ticks and labels
+ax_inset.set_xlim(2014,2264)
+ax_inset.set_xticks([2114, 2214])
+ax_inset.set_xticklabels(['100', '200 yrs'])
+
+ax_inset.set_ylim(-30,0)
+ax_inset.set_yticks([ -10, -20])#, -30])
+ax_inset.set_yticklabels([ '-10%', '-20%'])#, '-30%'])
+# ax_inset.yaxis.label.set_zorder(10)
+
+# Tick marks and labels setup
+ax_inset.tick_params(axis='both', which='both',
+                     direction='in',     # tick lines point inside
+                     length=5,           # visible tick length
+                     top=False, bottom=True, left=False, right=True,
+                     labelsize=12)
+
+# Tick labels on right side of y-axis
+ax_inset.yaxis.set_ticks_position('left')
+ax_inset.yaxis.set_label_position("left")
+
+ax_inset.grid(True, axis='both', which='major', linestyle=':', linewidth=0.5, color='gray')
+
+for label in ax_inset.get_xticklabels():
+    label.set_verticalalignment('top')
+    label.set_y(0.2)  # smaller = closer to axis line (inside)
+
+# Shift y-axis labels left into the plot
+for label in ax_inset.get_yticklabels():
+    label.set_horizontalalignment('left')
+    label.set_x(0.05)  # smaller = closer to axis line (inside)
+    
+
+rect_x = p + v_space_hist_all + 1.05
+rect_y = -24
+rect_w=2.25
+rect_height=24
+
+square = mpatches.Rectangle((rect_x, rect_y), rect_w, rect_height,
+                               linewidth=0.7, edgecolor='black', facecolor='none')
+ax.add_patch(square)
+
+
+rect_x_zoom = 0.2
+rect_y_zoom = -67
+rect_w_zoom=12
+rect_height_zoom=30
+
+square_zoom = mpatches.Rectangle((rect_x_zoom, rect_y_zoom), rect_w_zoom, rect_height_zoom,
+                               linewidth=1, edgecolor='none', facecolor='none')
+ax.add_patch(square_zoom)
+
+
+# --- Convert rectangle data coordinates to figure coordinates ---
+# Lower left and lower right corners of the rectangle
+ll_data = (rect_x, rect_y)
+lr_data = (rect_x + rect_w, rect_y)
+
+ll_disp = ax.transData.transform(ll_data)
+lr_disp = ax.transData.transform(lr_data)
+
+ll_fig = fig.transFigure.inverted().transform(ll_disp)
+lr_fig = fig.transFigure.inverted().transform(lr_disp)
+
+# --- Get upper left and right of the inset in figure coordinates ---
+# These are in the inset's axes coordinates, so (0, 1) is upper-left, (1, 1) is upper-right
+ul_data_zoom = (rect_x_zoom, rect_y_zoom+rect_height_zoom)
+ur_data_zoom = (rect_x_zoom + rect_w_zoom, rect_y_zoom+rect_height_zoom)
+
+ul_disp_zoom = ax.transData.transform(ul_data_zoom)
+ur_disp_zoom = ax.transData.transform(ur_data_zoom)
+
+ul_fig_zoom = fig.transFigure.inverted().transform(ul_disp_zoom)
+ur_fig_zoom = fig.transFigure.inverted().transform(ur_disp_zoom)
+
+# --- Draw lines from rectangle to inset corners ---
+line_left = mlines.Line2D([ll_fig[0], ul_fig_zoom[0]], [ll_fig[1], ul_fig_zoom[1]],
+                          transform=fig.transFigure, color='black', linestyle='--', zorder=10, lw=0.7)
+line_right = mlines.Line2D([lr_fig[0], ur_fig_zoom[0]], [lr_fig[1], ur_fig_zoom[1]],
+                           transform=fig.transFigure, color='black', linestyle='--', zorder=10, lw=0.7)
+ax.grid(True, axis='y', which='major', linestyle=':', linewidth=0.5, color='gray')
+
+fig.lines.extend([line_left, line_right])
+plt.savefig(
+    f"{fig_path}/Boxplot_Comitted_Mass_Loss_marzeion.png")
+plt.show()      
 
 #%% Cell 4d: Create comitted mass loss plot transient for totals only
 

@@ -618,10 +618,547 @@ if __name__ == '__main__':
     
 
 
+# %% Create output plots for Area and volume - per region
+
+ds = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a1_rgi_date_A_V_RGIreg_B_hugo.csv")
+
+# Filter out 'sample_id's that end with '0', except for 'IPSL-CM6.000'
+ds = ds[(~ds['sample_id'].str.endswith('0')) |
+        (ds['sample_id'] == 'IPSL-CM6.000')]
+
+# Define custom aggregation functions for grouping
+aggregation_functions = {
+    'rgi_region': 'first',
+    'rgi_subregion': 'first',
+    'full_name': 'first',
+    'cenlon': 'first',
+    'cenlat': 'first',
+    'rgi_date': 'first',
+    'rgi_area_km2': 'first',
+    'rgi_volume_km3': 'first',
+    'B_noirr': 'mean',
+    'B_irr': 'mean',
+    'B_delta_irr': 'mean',
+    # 'B_cf': 'mean',
+    # 'B_delta_cf': 'mean',
+    'sample_id': 'first'
+}
+
+# Step 1: Group by 'rgi_id', apply custom aggregation
+grouped_ds = ds.groupby('rgi_id').agg(aggregation_functions).reset_index()
+
+# Step 2: Replace the 'sample_id' column with "11-member average"
+grouped_ds['sample_id'] = f'{sum(members_averages)}-member average'
+
+# Step 3: Keep only the required columns
+grouped_ds = grouped_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+                         'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta_irr']] #, 'B_cf', 'B_delta_cf'
+
+# Overwrite the original dataset with the grouped one
+ds = grouped_ds
+
+# define the variables for p;lotting
+variables = ["volume"]  # , "area"]
+factors = [10**-9, 10**-6]
+
+variable_names = ["Volume", "Area"]
+variable_axes = ["Volume [km$^3$]", "Area [km$^2$]"]
+use_multiprocessing = False
+regions = [13, 14, 15]
+subregions = [9, 3, 3]
+region_colors = {
+    13: 'blue',    # Blue for region 13
+    14: 'crimson',    # Pink for region 14
+    15: 'orange'   # Orange for region 15
+}
 
 
+def custom_function(rgi_id, pattern):
+    return np.char.startswith(rgi_id, pattern)
 
 
+volume_bars = True
+
+# repeat the loop for area and volume
+for v, var in enumerate(variables):
+    print(var)
+    # create a new plot for both area and volume
+    n_rows = 5
+    n_cols = 3
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 12), sharex=True, sharey=False, gridspec_kw={
+                             'hspace': 0.15, 'wspace': 0.35})  # create a new figure
+    plot_index = 0
+    axes = axes.flatten()
+    all_loss_dfs = []
+    all_member_data = []
+    member_data_df_noi = pd.DataFrame(
+        columns=[f'member_{i+1}' for i in range(sum(members_averages))])
+    member_data_df_noi.index.name = 'subregion'
+    # member_data_df_cf = pd.DataFrame(
+    #     columns=[f'member_{i+1}' for i in range(sum(members_averages))])
+    # member_data_df_cf.index.name = 'subregion'
+
+    for r, region in enumerate(regions):
+        for subregion in range(subregions[r]):
+            ax = axes[plot_index]
+
+            subregion = subregion+1
+            region_id = f"{region}.0{subregion}"
+            print(region_id)
+            subregion_ds = ds[ds['rgi_subregion'].str.contains(
+                f"{region_id}")]  # based on input from above
+
+            # create a timeseries for all the model members to add the data, needed to calculate averages later
+            filtered_member_data = []
+            # filtered_member_data_cf = []
+            # load and plot the baseline data
+            baseline_path = os.path.join(
+                wd_path, "summary", f"climate_run_output_baseline_W5E5.000.nc")
+            baseline = xr.open_dataset(baseline_path)
+            filtered_baseline = baseline.where(
+                baseline['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
+            print(len(filtered_baseline.rgi_id))
+            # # Drop NaN values for rgi_id, but preserve the time dimension
+            # filtered_baseline = filtered_baseline.dropna(
+            #     dim='rgi_id', how='all')
+
+            ax.plot(filtered_baseline["time"], filtered_baseline[var].sum(dim="rgi_id") * factors[v],
+                    label="AllForcings", color=colors["irr"][0], linewidth=2, zorder=15)
+            mean_values_irr = (filtered_baseline[var].sum(
+                dim="rgi_id") * factors[v]).values
+            ax2 = ax.twinx()
+
+            # loop through all the different model x member combinations
+
+            for m, model in enumerate(models_shortlist):
+                for i in range(members_averages[m]):
+
+                    # make sure the counter for sample ids starts with 001, 000 are averages of all members by model
+                    # IPSL-CM6 only has 1 member, so the sample_id must end with 000
+                    if members_averages[m] > 1:
+                        i += 1
+
+                    sample_id = f"{model}.00{i}"
+
+                    # load and plot the data from the climate output run
+                    climate_run_opath = os.path.join(
+                        sum_dir, f'climate_run_output_perturbed_{sample_id}.nc')
+                    # climate_run_opath_cf = os.path.join(
+                    #     sum_dir, f'climate_run_output_perturbed_{sample_id}_counterfactual.nc')
+                    climate_run_output = xr.open_dataset(climate_run_opath)
+                    # climate_run_output_cf = xr.open_dataset(
+                    #     climate_run_opath_cf)
+                    filtered_climate_run_output = climate_run_output.where(
+                        climate_run_output['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
+                    # filtered_climate_run_output_cf = climate_run_output_cf.where(
+                    #     climate_run_output_cf['rgi_id'].isin(subregion_ds.rgi_id.values), drop=True)
+                    if i == 1 and m == 1:
+                        label = "GCM member"
+                    else:
+                        label = "_nolegend_"
+                    ax.plot(filtered_climate_run_output["time"], filtered_climate_run_output[var].sum(dim="rgi_id") * factors[v],
+                            label=label, color=colors["noirr"][0], linewidth=2, linestyle="dotted", zorder=3)
+                    # ax.plot(filtered_climate_run_output_cf["time"], filtered_climate_run_output_cf[var].sum(dim="rgi_id") * factors[v],
+                    #         label=None, color=colors["cf"][0], linewidth=2, linestyle="dotted", zorder=3)
+
+                    # add all the summed volumes/areas to the member list, so a multi-member average can be calculated
+                    filtered_member_data.append(filtered_climate_run_output[var].sum(
+                        dim="rgi_id").values * factors[v])
+                    # filtered_member_data_cf.append(filtered_climate_run_output_cf[var].sum(
+                    #     dim="rgi_id").values * factors[v])
+
+            # stack the member data
+            stacked_member_data = np.stack(filtered_member_data)
+            # stacked_member_data_cf = np.stack(filtered_member_data_cf)
+            # calculate and plot volume/area 10-member mean
+            # mean_values_noirr = np.mean(stacked_member_data, axis=0).flatten()
+            # mean_values_cf = np.mean(stacked_member_data_cf, axis=0).flatten()
+            mean_values_noirr = np.median(
+                stacked_member_data, axis=0).flatten()
+            # mean_values_cf = np.median(
+            #     stacked_member_data_cf, axis=0).flatten()
+
+            # calculate the volume loss by scenario: irr - noirr and counterfactual
+            volume_loss_percentage_noirr = (
+                (mean_values_noirr - mean_values_irr[0]) / mean_values_irr[0]) * 100
+            # volume_loss_percentage_cf = (
+            #     (mean_values_cf - mean_values_irr[0]) / mean_values_irr[0]) * 100
+            volume_loss_percentage_irr = (
+                (mean_values_irr - mean_values_irr[0]) / mean_values_irr[0]) * 100
+            # create a dataframe with the volume loss percentages and absolute values
+            loss_df_subregion = pd.DataFrame({
+                'time': climate_run_output["time"].values,
+                'subregion': np.repeat(region_id, len(climate_run_output["time"])),
+                'volume_irr': mean_values_irr,
+                'volume_noirr': mean_values_noirr,
+                # 'volume_cf': mean_values_cf,
+                'volume_loss_percentage_irr': volume_loss_percentage_irr,
+                'volume_loss_percentage_noirr': volume_loss_percentage_noirr,
+                # 'volume_loss_percentage_cf': volume_loss_percentage_cf
+            })
+
+            uncertainty_data_noi = (stacked_member_data[:, -1]).reshape(1, -1)
+            # uncertainty_data_cf = (
+            #     stacked_member_data_cf[:, -1]).reshape(1, -1)
+            # create a dataframe with the member data of 2014, to use for uncertainty analysis
+            row_noi = pd.DataFrame(
+                uncertainty_data_noi, columns=member_data_df_noi.columns, index=[region_id])
+            # row_cf = pd.DataFrame(
+            #     uncertainty_data_cf, columns=member_data_df_cf.columns, index=[region_id])
+            # Concatenate the new row to the DataFrame
+            # member_data_df_noi = pd.concat([member_data_df_noi, row_noi])
+            # member_data_df_cf = pd.concat([member_data_df_cf, row_cf])
+
+            all_loss_dfs.append(loss_df_subregion)
+
+            # create a bar chart to show the volume loss by dataset
+            ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_noirr[-1],
+                    color=colors['noirr'][0], label="Volume Loss NoIrr(%)", alpha=0.6, zorder=0)
+
+            ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_irr[-1],
+                    color=colors['irr'][0],  label="Volume Loss Irr (%)", alpha=0.6, zorder=2)
+
+            # ax2.bar(climate_run_output["time"].values[-1]+2, volume_loss_percentage_cf[-1],
+            #         color=colors['cf'][0],  label="Volume Loss NoForcings (%)", alpha=0.6, zorder=1)
+
+            ax2.axhline(0, color='black', linestyle='--',
+                        linewidth=1.5, zorder=1)  # Dashed line at 0
+
+            ax.plot(climate_run_output["time"].values, mean_values_noirr,
+                    color=colors["noirr"][0], linestyle='solid', lw=2, label=f"NoIrr ({sum(members_averages)}-member avg)", zorder=3)
+            # ax.plot(climate_run_output_cf["time"].values, mean_values_cf,
+            #         color=colors["cf"][0], linestyle='solid', lw=2, label="fNoForcings ({sum(members_averages)}-member avg)", zorder=3)
+
+            # calculate and plot volume/area 10-member min and max for ribbon
+            min_values = np.min(stacked_member_data, axis=0).flatten()
+            max_values = np.max(stacked_member_data, axis=0).flatten()
+            ax.fill_between(climate_run_output["time"].values, min_values, max_values,
+                            color=colors["noirr"][1], alpha=0.3, label=f"NoIrr ({sum(members_averages)}-member range)", zorder=3)
+
+            # min_values_cf = np.min(stacked_member_data_cf, axis=0).flatten()
+            # max_values_cf = np.max(stacked_member_data_cf, axis=0).flatten()
+            # ax.fill_between(climate_run_output_cf["time"].values, min_values_cf, max_values_cf,
+            #                 color=colors["cf"][1], alpha=0.3, label=f"NoForcings ({sum(members_averages)}-member range)", zorder=3)
+
+            # Determine row and column indices
+            row = plot_index // n_cols
+            col = plot_index % n_cols
+            plot_index += 1
+
+            # Add y label if it's the first column or bottom row
+            if col == 0 and row == 2:
+                # Set labels and title for the combined plot
+                ax.set_ylabel(variable_axes[v])
+
+            # Step 1: Set the value on ax1 where we want 0 on ax2 to align
+            # e.g., the first value of data1
+            align_value = (filtered_baseline[var].sum(
+                dim="rgi_id") * factors[v])[0].values
+
+            # Step 2: Calculate the offset required for ax2 limits
+            mpl_axes_aligner.align.yaxes(ax, align_value, ax2, 0)
+
+            # Adjust the y-label for the secondary y-axis
+            if col == 2 and row == 2:
+                ax2.set_ylabel("Volume Loss [%]", color='black')
+
+            # Annotate region ID in the lower-left corner
+            ax.text(0.05, 0.8, f'{region_id}', transform=ax.transAxes,
+                    fontsize=12, verticalalignment='bottom', horizontalalignment='left', fontweight='bold')
+            num_glaciers = len(filtered_baseline.rgi_id.values)
+            ax.text(0.05, 0.05, f'{num_glaciers}', transform=ax.transAxes,
+                    fontsize=12, verticalalignment='bottom', horizontalalignment='left')
+
+    all_loss_dfs_combined = pd.concat(all_loss_dfs, ignore_index=True)
+    o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output Files/02. OGGM/02. Volume Area simulations"
+    o_file_data = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.subregions.csv"
+    o_file_data_uncertainties_noi = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.subregions.uncertainties.noi.csv"
+    # o_file_data_uncertainties_cf = f"{o_folder_data}/1985_2014.{timeframe}.delta.{variable_names[v]}.subregions.uncertainties.cf.csv"
+    all_loss_dfs_combined.to_csv(o_file_data)
+    member_data_df_noi.to_csv(o_file_data_uncertainties_noi)
+    # member_data_df_cf.to_csv(o_file_data_uncertainties_cf)
+    # Adjust the legend
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='center',
+               bbox_to_anchor=(0.5, 0.05), ncol=3)
+    # ax.set_title(f"{region_id}")
+    plt.tight_layout()
+    plt.show()
+
+    # specify and create a folder for saving the data (if it doesn't exists already) and save the plot
+    o_folder_fig = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/04. Figures/02. OGGM simulations/01. Modelled output/3r_a5/0{v + 1}. {variable_names[v]}/01. Subregions"
+    os.makedirs(o_folder_data, exist_ok=True)
+    o_file_name = f"{o_folder_fig}/1985_2014.{timeframe}.delta.{variable_names[v]}.subregions.png"
+    plt.savefig(o_file_name, bbox_inches='tight')
+
+# %% Cell 6c create output table
+
+
+# Specify Paths
+o_folder_data = (
+    "/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output Files/02. OGGM/02. Volume Area simulations"
+)
+o_file_data = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions.csv"
+o_file_data_processed = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions_processed.csv"
+
+# Load dataset
+ds = pd.read_csv(o_file_data)
+ds_subregions = ds[ds.time == 2014.0][[
+    "subregion",
+    "volume_loss_percentage_irr",
+    "volume_loss_percentage_noirr",
+    "volume_loss_percentage_cf",
+    "volume_irr",
+    "volume_noirr",
+    "volume_cf"
+]]
+
+# Process total volumes
+ds_total = ds.groupby("time").sum()[[
+    "volume_irr",
+    "volume_noirr",
+    "volume_cf"
+]].round(2)
+
+# Calculate total row
+df_total = pd.DataFrame({
+    "subregion": ["total"],
+    "volume_loss_percentage_irr": ((ds_total.loc[2014.0, "volume_irr"] - ds_total.loc[1985.0, "volume_irr"]) / ds_total.loc[1985.0, "volume_irr"]) * 100,
+    "volume_loss_percentage_noirr": ((ds_total.loc[2014.0, "volume_noirr"] - ds_total.loc[1985.0, "volume_irr"]) / ds_total.loc[1985.0, "volume_irr"]) * 100,
+    "volume_loss_percentage_cf": ((ds_total.loc[2014.0, "volume_cf"] - ds_total.loc[1985.0, "volume_irr"]) / ds_total.loc[1985.0, "volume_irr"]) * 100,
+    "volume_irr": ds_total.loc[2014.0, "volume_irr"] - ds_total.loc[1985.0, "volume_irr"],
+    "volume_noirr": ds_total.loc[2014.0, "volume_noirr"] - ds_total.loc[1985.0, "volume_irr"],
+    "volume_cf": ds_total.loc[2014.0, "volume_cf"] - ds_total.loc[1985.0, "volume_irr"]
+})
+
+# Combine subregions with total
+ds_all_losses = pd.concat([ds_subregions, df_total], ignore_index=True)
+
+# Calculate deltas
+ds_all_losses["delta_irr"] = ds_all_losses["volume_loss_percentage_noirr"] - \
+    ds_all_losses["volume_loss_percentage_irr"]
+ds_all_losses["delta_cf"] = ds_all_losses["volume_loss_percentage_cf"] - \
+    ds_all_losses["volume_loss_percentage_irr"]
+
+# Load RGI data
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg.csv")
+df["subregion"] = df["rgi_subregion"].str.replace(
+    "-", ".").str.strip().str.lower()
+
+# Aggregate RGI data
+areas = df.groupby("subregion")["rgi_area_km2"].sum().reset_index(name="area")
+volume = df.groupby("subregion")[
+    "rgi_volume_km3"].sum().reset_index(name="volume")
+nr_glaciers = df.groupby("subregion")[
+    "rgi_id"].count().reset_index(name="nr_glaciers")
+
+# Add total rows
+areas = pd.concat([areas, pd.DataFrame(
+    {"subregion": ["total"], "area": [areas["area"].sum()]})], ignore_index=True)
+volume = pd.concat([volume, pd.DataFrame({"subregion": ["total"], "volume": [
+                   volume["volume"].sum()]})], ignore_index=True)
+nr_glaciers = pd.concat([nr_glaciers, pd.DataFrame({"subregion": [
+                        "total"], "nr_glaciers": [nr_glaciers["nr_glaciers"].sum()]})], ignore_index=True)
+
+
+# Process uncertainties
+for scenario in ["noi", "cf"]:
+    o_file_data_uncertainties = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions.uncertainties.{scenario}.csv"
+
+    # Load uncertainties - lowest and heightest modelled values
+    ds_uncertainties = pd.read_csv(o_file_data_uncertainties, index_col=0)
+    ds_uncertainties.index.name = "subregion"
+
+    # Calculate confidence intervals
+    mean_values = ds_uncertainties.mean(axis=1)
+    sem_values = ds_uncertainties.sem(axis=1)
+    confidence_level = 0.90
+    degrees_of_freedom = ds_uncertainties.shape[1] - 1
+    critical_value = stats.t.ppf(
+        (1 + confidence_level) / 2, degrees_of_freedom)
+    margin_of_error_abs = critical_value * sem_values
+
+    # Create confidence intervals DataFrame
+    confidence_intervals = pd.DataFrame({
+        f"error_margin_{scenario}_abs": margin_of_error_abs,
+    }).reset_index()
+
+    # Calculate total uncertainties
+    ds_uncertainties_total = ds_uncertainties.sum().round(2)
+    mean_values_total = ds_uncertainties_total.mean()
+    sem_values_total = ds_uncertainties_total.sem()
+    critical_value_total = stats.t.ppf(
+        (1 + confidence_level) / 2, degrees_of_freedom)
+    margin_of_error_total_abs = critical_value_total * sem_values_total
+
+    df_uncertainties_total = pd.DataFrame({
+        "subregion": ["total"],
+        f"error_margin_{scenario}_abs": [margin_of_error_total_abs],
+    })
+
+    # Combine with total
+    confidence_intervals = pd.concat(
+        [confidence_intervals, df_uncertainties_total], ignore_index=True)
+
+    # Merge confidence intervals into ds_all_losses
+    ds_all_losses = ds_all_losses.merge(
+        confidence_intervals, on="subregion", how="left")
+
+# Merge RGI info into ds_all_losses
+ds_all_losses['subregion'] = areas["subregion"]
+ds_all_losses = ds_all_losses.merge(areas, on="subregion", how="left")
+ds_all_losses = ds_all_losses.merge(volume, on="subregion", how="left")
+ds_all_losses = ds_all_losses.merge(nr_glaciers, on="subregion", how="left")
+
+ds_all_losses['error_margin_noi_rel'] = ds_all_losses['error_margin_noi_abs'] / \
+    ds_all_losses['volume_noirr']*100
+ds_all_losses['error_margin_cf_rel'] = ds_all_losses['error_margin_cf_abs'] / \
+    ds_all_losses['volume_cf']*100
+# Final selection of columns and save to CSV
+ds_all_losses = ds_all_losses[[
+    "subregion", "nr_glaciers", "area", "volume",
+    "volume_loss_percentage_irr", "volume_irr",
+    "volume_loss_percentage_noirr", "volume_noirr", "error_margin_noi_rel", "error_margin_noi_abs", "delta_irr",
+    "volume_loss_percentage_cf", "volume_cf", "error_margin_cf_rel", "error_margin_cf_abs", "delta_cf",
+
+]].round(2)
+
+ds_all_losses.to_csv(o_file_data_processed)
+
+# %% Table input: Process all volume losses and uncertainties to csv
+
+o_folder_data = f"/Users/magaliponds/OneDrive - Vrije Universiteit Brussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output Files/02. OGGM/02. Volume Area simulations"
+o_file_data = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions.csv"
+o_file_data_processed = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions_processed.csv"
+# Load your main dataset and process as required
+ds = pd.read_csv(o_file_data)
+ds_subregions = ds[ds.time == 2014.0][["subregion", 'volume_loss_percentage_irr',
+                                       "volume_loss_percentage_noirr", "volume_loss_percentage_cf",
+                                       'volume_irr', 'volume_noirr', 'volume_cf']]
+# Process total volumes
+ds_total = ds.groupby('time').sum()[
+    ['volume_irr', 'volume_noirr', "volume_cf"]].round(2)
+df_total = pd.DataFrame({
+    "subregion": ["total"],
+    "volume_loss_percentage_irr": ((ds_total.loc[2014.0, "volume_irr"] - ds_total.loc[1985.0, "volume_irr"]) / ds_total.loc[1985.0, "volume_irr"]) * 100,
+    "volume_loss_percentage_noirr": ((ds_total.loc[2014.0, "volume_noirr"] - ds_total.loc[1985.0, "volume_irr"]) / ds_total.loc[1985.0, "volume_irr"]) * 100,
+    "volume_loss_percentage_cf": ((ds_total.loc[2014.0, "volume_cf"] - ds_total.loc[1985.0, "volume_irr"]) / ds_total.loc[1985.0, "volume_irr"]) * 100,
+    "volume_irr": ds_total.loc[2014.0, "volume_irr"] - ds_total.loc[1985.0, "volume_irr"],
+    "volume_noirr": ds_total.loc[2014.0, "volume_noirr"] - ds_total.loc[1985.0, "volume_irr"],
+    "volume_cf": ds_total.loc[2014.0, "volume_cf"] - ds_total.loc[1985.0, "volume_irr"]
+})
+
+# Concatenate subregions with totals
+ds_all_losses = pd.concat([ds_subregions, df_total], ignore_index=True)
+ds_all_losses["delta_irr"] = ds_all_losses["volume_loss_percentage_noirr"] - \
+    ds_all_losses["volume_loss_percentage_irr"]
+ds_all_losses["delta_cf"] = ds_all_losses["volume_loss_percentage_cf"] - \
+    ds_all_losses["volume_loss_percentage_irr"]
+
+
+# Load RGI data
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a5_rgi_date_A_V_RGIreg.csv")
+
+# Standardize 'subregion' formatting in both DataFrames
+df['subregion'] = df['rgi_subregion'].str.replace(
+    '-', '.').str.strip().str.lower()
+
+# Aggregate and rename columns in RGI data
+areas = df.groupby('subregion').rgi_area_km2.sum().reset_index(name='area')
+volume = df.groupby(
+    'subregion').rgi_volume_km3.sum().reset_index(name='volume')
+nr_glaciers = df.groupby(
+    'subregion').rgi_id.count().reset_index(name='nr_glaciers')
+
+areas_total = pd.DataFrame(
+    {'subregion': ['total'], 'area': [areas['area'].sum()]})
+volume_total = pd.DataFrame(
+    {'subregion': ['total'], 'volume': [volume['volume'].sum()]})
+nr_glaciers_total = pd.DataFrame({'subregion': ['total'], 'nr_glaciers': [
+                                 nr_glaciers['nr_glaciers'].sum()]})
+
+# Append the total row using pd.concat
+areas = pd.concat([areas, areas_total], ignore_index=True)
+volume = pd.concat([volume, volume_total], ignore_index=True)
+nr_glaciers = pd.concat([nr_glaciers, nr_glaciers_total], ignore_index=True)
+
+# this needs to be fixed!!!
+ds_all_losses['subregion'] = areas['subregion']
+
+# Merge RGI info into ds_all_losses
+ds_all_losses = ds_all_losses.merge(areas, on='subregion', how='left')
+ds_all_losses = ds_all_losses.merge(volume, on='subregion', how='left')
+ds_all_losses = ds_all_losses.merge(nr_glaciers, on='subregion', how='left')
+
+for scenario in ["noi", "cf"]:
+    o_file_data_uncertainties = f"{o_folder_data}/1985_2014.{timeframe}.delta.Volume.subregions.uncertainties.{scenario}.csv"
+
+    # Include the uncertainties by category
+    ds_uncertainties = pd.read_csv(o_file_data_uncertainties, index_col=0)
+    ds_uncertainties.index.name = 'subregion'
+    print(ds_uncertainties)
+
+    # Step 1: Calculate the mean for each subregion
+    mean_values = ds_uncertainties.mean(axis=1)
+
+    # Step 2: Calculate the standard error of the mean (SEM) for each subregion
+    sem_values = ds_uncertainties.sem(axis=1)
+
+    # Step 3: Determine the critical T-value for 90% confidence level
+    confidence_level = 0.90
+    # 11 members, so df = 11 - 1 = 10
+    degrees_of_freedom = ds_uncertainties.shape[1] - 1
+    critical_value = stats.t.ppf(
+        (1 + confidence_level) / 2, degrees_of_freedom)
+
+    # Step 4: Calculate the margin of error
+    margin_of_error = critical_value * sem_values
+    confidence_intervals = pd.DataFrame({
+        f'error_margin_{scenario}_abs': margin_of_error
+    }).reset_index()
+    confidence_intervals['subregion'] = confidence_intervals['subregion'].astype(
+        object)
+
+    ds_uncertainties_total = ds_uncertainties.sum().round(2)
+    mean_values_total = ds_uncertainties_total.mean()
+    sem_values_total = ds_uncertainties_total.sem()
+    # 11 members, so df = 11 - 1 = 10
+    degrees_of_freedom_total = ds_uncertainties_total.shape[0] - 1
+    critical_value_total = stats.t.ppf(
+        (1 + confidence_level) / 2, degrees_of_freedom_total)
+    margin_of_error_total = critical_value_total * sem_values_total
+
+    df_uncertainties_total = pd.DataFrame({
+        "subregion": ["total"],
+        f"error_margin_{scenario}_abs": margin_of_error_total})
+
+    # Concatenate subregions with totals
+    confidence_intervals = pd.concat(
+        [confidence_intervals, df_uncertainties_total], ignore_index=True)
+    confidence_intervals['subregion'] = areas['subregion']
+    print(confidence_intervals)
+
+    # # Step 5: Calculate the confidence intervals
+    # lower_bounds = mean_values - margin_of_error
+    # upper_bounds = mean_values + margin_of_error
+
+    ds_all_losses = ds_all_losses.merge(
+        confidence_intervals, on='subregion', how='left')
+
+
+# # Check results
+ds_all_losses = ds_all_losses[['subregion', 'nr_glaciers', 'area', 'volume',
+                               'volume_loss_percentage_irr', 'volume_irr',
+                               'volume_loss_percentage_noirr', 'volume_noirr', 'delta_irr',
+                               'error_margin_noi_abs',
+                               'volume_loss_percentage_cf', 'volume_cf',  'delta_cf',
+                               'error_margin_cf_abs',
+                               ]].round(2)
+ds_all_losses.to_csv(o_file_data_processed)
+# print(ds_all_losses[['subregion', 'area', 'volume', 'nr_glaciers']].head())
 
 
 

@@ -245,3 +245,65 @@ plt.tight_layout()
 # plt.legend(loc='lower center')
 plt.show()
 
+
+#%%
+
+wd_path = f'{folder_path}/03. Modelled perturbation-glacier interactions - R13-15 A+5km2/'
+opath=f'{wd_path}/masters/gdir_3r_a5_share_VA_analysis.csv'
+summary_df = pd.read_csv(opath, usecols=["rgi_subregion", 'rgi_id', "rgi_area_km2", "inv_volume_km3"])
+
+fig, axes = plt.subplots(5,3, figsize=(15,12), sharey=True, sharex=True)
+regions=[13,14,15]
+subregions=[9,3,3]
+axes=axes.flatten()
+ax_tracker=0
+for r, region in enumerate(regions):
+    for s in range(subregions[r]):
+        s+=1
+        subregion_id = f"{region}-0{s}"
+        subregion_df = summary_df[summary_df['rgi_subregion']==subregion_id]
+        subregion_filtered = subregion_df[subregion_df['rgi_area_km2'] <= 100]
+        # axes[ax_tracker].hist(subregion_df['rgi_area_km2'], bins=5)
+        bin_edges = np.arange(0, subregion_filtered['rgi_area_km2'].max() + 2.5, 2.5)
+
+        # Compute histogram data
+        counts, edges = np.histogram(subregion_filtered['rgi_area_km2'], bins=bin_edges)
+        
+        # Identify which bins correspond to area < 5 km²
+        colors = ['purple' if edge < 5 else 'gray' for edge in edges[:-1]]
+        
+        # Plot histogram with colored bars
+        axes[ax_tracker].bar(edges[:-1], counts, width=np.diff(edges), color=colors, edgecolor='none', align='edge')
+        
+        #set scale to logarithmic
+        axes[ax_tracker].set_yscale('log')
+        
+        # Labeling
+        axes[ax_tracker].set_title(f"{subregion_id}", fontsize=18)
+        
+        # Total glacier area in the region (up to 100 km², if you're filtering)
+        total_area = subregion_df['rgi_area_km2'].sum()
+        
+        # Area from glaciers smaller than 5 km²
+        small_glaciers_area = subregion_df[subregion_df['rgi_area_km2'] < 5]['rgi_area_km2'].sum()
+        
+        # Percentage calculation
+        small_area_percent = (small_glaciers_area / total_area) * 100
+        annotation_text = f"\n{small_area_percent:.1f}%"
+
+        # Add the annotation to the corresponding subplot
+        axes[ax_tracker].text(
+            0.95, 0.95, annotation_text,
+            transform=axes[ax_tracker].transAxes,
+            ha='right', va='top',
+            fontsize=24,
+            # bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8)
+        )
+
+        ax_tracker+=1
+
+        
+fig.supxlabel("Area [km$^2$]", fontsize=20)
+fig.supylabel("Glacier count [#]", fontsize=20)
+# fig.tight_layout
+        

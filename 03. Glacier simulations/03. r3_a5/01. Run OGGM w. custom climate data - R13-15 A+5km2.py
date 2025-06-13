@@ -245,7 +245,7 @@ print("Loaded libraries")
 # os.makedirs(pkls_subset, exist_ok=True)
 
 # # Save each gdir individually
-# for gdir in gdirs_test_filtered:
+# for gdir in gdirs_3r_a5: #gdirs_test_filtered
 #     gdir_path = os.path.join(pkls_subset, f'{gdir.rgi_id}.pkl')
 #     with open(gdir_path, 'wb') as f:
 #         pickle.dump(gdir, f)
@@ -647,58 +647,58 @@ models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
 
 def main():
     errors=[]
-    for m, model in enumerate(models):
-        for member in range(members[m]):
-            if member>=1:
-                sample_id = f"{model}.00{member}"
-                print(sample_id)
-                out_id = f'_hydro_perturbed_{sample_id}'
-                for gdir in gdirs_3r_a5:
-                    try:
-                        workflow.execute_entity_task(
-                            tasks.run_with_hydro, [gdir],
-                            run_task=tasks.run_from_climate_data,
-                            ys=y0_clim, ye=ye_clim,
-                            max_ys=None, fixed_geometry_spinup_yr=None,
-                            store_monthly_hydro=True,
-                            store_model_geometry=True,
-                            store_fl_diagnostics=True,
-                            climate_filename='gcm_data',
-                            climate_input_filesuffix='_perturbed_{}'.format(
-                                sample_id),
-                            output_filesuffix=out_id,
-                            zero_initial_glacier=False, bias=0,
-                            temperature_bias=None, precipitation_factor=None,
-                            init_model_filesuffix='_spinup_historical',
-                            init_model_yr=y0_clim
-                        )
+    # for m, model in enumerate(models):
+    #     for member in range(members[m]):
+    #         if member>=1:
+    #             sample_id = f"{model}.00{member}"
+    #             print(sample_id)
+    #             out_id = f'_hydro_perturbed_{sample_id}'
+    #             for gdir in gdirs_3r_a5:
+    #                 try:
+    #                     workflow.execute_entity_task(
+    #                         tasks.run_with_hydro, [gdir],
+    #                         run_task=tasks.run_from_climate_data,
+    #                         ys=y0_clim, ye=ye_clim,
+    #                         max_ys=None, fixed_geometry_spinup_yr=None,
+    #                         store_monthly_hydro=True,
+    #                         store_model_geometry=True,
+    #                         store_fl_diagnostics=True,
+    #                         climate_filename='gcm_data',
+    #                         climate_input_filesuffix='_perturbed_{}'.format(
+    #                             sample_id),
+    #                         output_filesuffix=out_id,
+    #                         zero_initial_glacier=False, bias=0,
+    #                         temperature_bias=None, precipitation_factor=None,
+    #                         init_model_filesuffix='_spinup_historical',
+    #                         init_model_yr=y0_clim
+    #                     )
 
-                    except Exception as err:
-                        err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
-                                   f"sample_id={sample_id}\n"
-                                   f"{traceback.format_exc()}")
-                        logging.error(err_msg)
-                        errors.append(gdir.rgi_id)
-                        print(f"[ERROR] Logged: {gdir.rgi_id}")
+    #                 except Exception as err:
+    #                     err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
+    #                                f"sample_id={sample_id}\n"
+    #                                f"{traceback.format_exc()}")
+    #                     logging.error(err_msg)
+    #                     errors.append(gdir.rgi_id)
+    #                     print(f"[ERROR] Logged: {gdir.rgi_id}")
                         
         
-                opath = os.path.join(
-                    # sum_dir, f'hydro_run_output_perturbed_{sample_id}_counterfactual.nc')
-                    sum_dir, f'hydro_run_output_perturbed_{sample_id}.nc')
-                ds_ptb = utils.compile_run_output(
-                    gdirs_3r_a5, input_filesuffix=out_id, path=opath)  # compile the run output
+    #             opath = os.path.join(
+    #                 # sum_dir, f'hydro_run_output_perturbed_{sample_id}_counterfactual.nc')
+    #                 sum_dir, f'hydro_run_output_perturbed_{sample_id}.nc')
+    #             ds_ptb = utils.compile_run_output(
+    #                 gdirs_3r_a5, input_filesuffix=out_id, path=opath)  # compile the run output
         
-                log_path = os.path.join(
-                    log_dir, f'stats_perturbed_{sample_id}_hydro_run.nc')
-                df_stats = utils.compile_glacier_statistics(
-                    gdirs_3r_a5, path=log_path)
-    if errors:
-        with open(os.path.join(sum_dir, "gdir_errors_hdyro_hist_baseline_noi_hist.txt"), "w") as f:
-            for rgi_id in errors:
-                f.write(rgi_id + "\n")
-        print(f"\n🚨 Finished with {len(errors)} gdir errors. See gdir_errors.txt.")
-    else:
-        print("\n✅ All glaciers processed successfully.")
+    #             log_path = os.path.join(
+    #                 log_dir, f'stats_perturbed_{sample_id}_hydro_run.nc')
+    #             df_stats = utils.compile_glacier_statistics(
+    #                 gdirs_3r_a5, path=log_path)
+    # if errors:
+    #     with open(os.path.join(sum_dir, "gdir_errors_hdyro_hist_baseline_noi_hist.txt"), "w") as f:
+    #         for rgi_id in errors:
+    #             f.write(rgi_id + "\n")
+    #     print(f"\n🚨 Finished with {len(errors)} gdir errors. See gdir_errors.txt.")
+    # else:
+    #     print("\n✅ All glaciers processed successfully.")
 
     for gdir in gdirs_3r_a5:
         try:
@@ -713,26 +713,21 @@ def main():
                                          init_model_yr=y0_clim, store_fl_diagnostics=True,
                                          store_monthly_hydro=True)
             
-            opath_base = os.path.join(sum_dir, 'hydro_run_output_baseline_W5E5.000.nc')
-            ds_base = utils.compile_run_output(
-                gdirs_3r_a5, input_filesuffix='_hydro_baseline_W5E5.000', path=opath_base)
             
-            log_path_base = os.path.join(
-                log_dir, f'stats_perturbed_W5E5.000_hydro_run.csv')
         except Exception as err:
             err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
-                       f"sample_id=W5E%.000\n"
+                       f"sample_id=W5E5.000\n"
                        f"{traceback.format_exc()}")
             logging.error(err_msg)
             errors.append(gdir.rgi_id)
             print(f"[ERROR] Logged: {gdir.rgi_id}")
-        if errors:
-            with open(os.path.join(sum_dir, "gdir_errors_hdyro_hist_baseline.txt"), "w") as f:
-                for rgi_id in errors:
-                    f.write(rgi_id + "\n")
-            print(f"\n🚨 Finished with {len(errors)} gdir errors. See gdir_errors.txt.")
-        else:
-            print("\n✅ All glaciers processed successfully.")
+                            
+    opath_base = os.path.join(sum_dir, 'hydro_run_output_baseline_W5E5.000.nc')
+    ds_base = utils.compile_run_output(
+        gdirs_3r_a5, input_filesuffix='_hydro_baseline_W5E5.000', path=opath_base)
+    
+    log_path_base = os.path.join(
+        log_dir, f'stats_perturbed_W5E5.000_hydro_run.csv')
 
 if __name__ == '__main__':
     multiprocessing.set_start_method('spawn', force=True)
@@ -941,3 +936,5 @@ if __name__ == '__main__':
 
 # ds_base = utils.compile_run_output(
 #     subset_gdirs, input_filesuffix=out_id, path=opath_base)  # gdirs_3r_a5,
+
+

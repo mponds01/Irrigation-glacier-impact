@@ -629,113 +629,215 @@ print("loaded gdirs")
 
 # %% Cell 8: Set up run with hydro
 
-cfg.PARAMS['continue_on_error'] = True
+# cfg.PARAMS['continue_on_error'] = True
+
+# cfg.PARAMS['use_multiprocessing'] = True
+# cfg.PARAMS['core'] = 9 # 🔧 set number of cores
+    
+# cfg.PARAMS['border'] = 240
+# cfg.PARAMS['store_monthly_hydro'] = True
+
+# # gdir = gdirs_3r_a5[0]
+# y0_clim = 1985
+# ye_clim = 2014
+
+# subset_gdirs = gdirs_3r_a5
+# members = [1, 3, 4, 6, 4]
+# models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
+
+# def main():
+#     errors=[]
+#     # for m, model in enumerate(models):
+#     #     for member in range(members[m]):
+#     #         if member>=1:
+#     #             sample_id = f"{model}.00{member}"
+#     #             print(sample_id)
+#     #             out_id = f'_hydro_perturbed_{sample_id}'
+#     #             for gdir in gdirs_3r_a5:
+#     #                 try:
+#     #                     workflow.execute_entity_task(
+#     #                         tasks.run_with_hydro, [gdir],
+#     #                         run_task=tasks.run_from_climate_data,
+#     #                         ys=y0_clim, ye=ye_clim,
+#     #                         max_ys=None, fixed_geometry_spinup_yr=None,
+#     #                         store_monthly_hydro=True,
+#     #                         store_model_geometry=True,
+#     #                         store_fl_diagnostics=True,
+#     #                         climate_filename='gcm_data',
+#     #                         climate_input_filesuffix='_perturbed_{}'.format(
+#     #                             sample_id),
+#     #                         output_filesuffix=out_id,
+#     #                         zero_initial_glacier=False, bias=0,
+#     #                         temperature_bias=None, precipitation_factor=None,
+#     #                         init_model_filesuffix='_spinup_historical',
+#     #                         init_model_yr=y0_clim
+#     #                     )
+
+#     #                 except Exception as err:
+#     #                     err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
+#     #                                f"sample_id={sample_id}\n"
+#     #                                f"{traceback.format_exc()}")
+#     #                     logging.error(err_msg)
+#     #                     errors.append(gdir.rgi_id)
+#     #                     print(f"[ERROR] Logged: {gdir.rgi_id}")
+                        
+        
+#     #             opath = os.path.join(
+#     #                 # sum_dir, f'hydro_run_output_perturbed_{sample_id}_counterfactual.nc')
+#     #                 sum_dir, f'hydro_run_output_perturbed_{sample_id}.nc')
+#     #             ds_ptb = utils.compile_run_output(
+#     #                 gdirs_3r_a5, input_filesuffix=out_id, path=opath)  # compile the run output
+        
+#     #             log_path = os.path.join(
+#     #                 log_dir, f'stats_perturbed_{sample_id}_hydro_run.nc')
+#     #             df_stats = utils.compile_glacier_statistics(
+#     #                 gdirs_3r_a5, path=log_path)
+#     # if errors:
+#     #     with open(os.path.join(sum_dir, "gdir_errors_hdyro_hist_baseline_noi_hist.txt"), "w") as f:
+#     #         for rgi_id in errors:
+#     #             f.write(rgi_id + "\n")
+#     #     print(f"\n🚨 Finished with {len(errors)} gdir errors. See gdir_errors.txt.")
+#     # else:
+#     #     print("\n✅ All glaciers processed successfully.")
+
+#     for gdir in gdirs_3r_a5:
+#         try:
+#             # # And run the climate model with reference data
+#             workflow.execute_entity_task(tasks.run_with_hydro, [gdir],
+#                                          run_task=tasks.run_from_climate_data,
+#                                          ys=y0_clim, ye=ye_clim,
+#                                          climate_filename='climate_historical',
+#                                          # climate_input_filesuffix=
+#                                          output_filesuffix='_hydro_baseline_W5E5.000',
+#                                          init_model_filesuffix='_spinup_historical',
+#                                          init_model_yr=y0_clim, store_fl_diagnostics=True,
+#                                          store_monthly_hydro=True)
+            
+            
+#         except Exception as err:
+#             err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
+#                        f"sample_id=W5E5.000\n"
+#                        f"{traceback.format_exc()}")
+#             logging.error(err_msg)
+#             errors.append(gdir.rgi_id)
+#             print(f"[ERROR] Logged: {gdir.rgi_id}")
+                            
+#     opath_base = os.path.join(sum_dir, 'hydro_run_output_baseline_W5E5.000.nc')
+#     ds_base = utils.compile_run_output(
+#         gdirs_3r_a5, input_filesuffix='_hydro_baseline_W5E5.000', path=opath_base)
+    
+#     log_path_base = os.path.join(
+#         log_dir, f'stats_perturbed_W5E5.000_hydro_run.csv')
+
+# if __name__ == '__main__':
+#     multiprocessing.set_start_method('spawn', force=True)
+#     main()        
+            
+            
+    
+
+#%% RUn with hydro future
+
+    
+members = [4]
+models = ["CESM2"]
+timeframe = "monthly"
+ssps = ["126","370"]#"126",
+exp = ["IRR","NOI"]#,"IRR"]#, "NOI"]
+y0=2014
+ye=2074
+
+# opath_climate = os.path.join(sum_dir, 'climate_historical.nc')
+# utils.compile_climate_input(
+#     gdirs_3r_a5, path=opath_climate, filename='climate_historical')
+remake="False"
+cfg.PARAMS['store_monthly_hydro'] = True
+logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
+
+# # if you get a long error log saying that "columns" can not be renamed it is often related to multiprocessing
 
 cfg.PARAMS['use_multiprocessing'] = True
 cfg.PARAMS['core'] = 9 # 🔧 set number of cores
-    
-cfg.PARAMS['border'] = 240
-cfg.PARAMS['store_monthly_hydro'] = True
-
-# gdir = gdirs_3r_a5[0]
-y0_clim = 1985
-ye_clim = 2014
-
-subset_gdirs = gdirs_3r_a5
-members = [1, 3, 4, 6, 4]
-models = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
 
 def main():
-    errors=[]
-    # for m, model in enumerate(models):
-    #     for member in range(members[m]):
-    #         if member>=1:
-    #             sample_id = f"{model}.00{member}"
-    #             print(sample_id)
-    #             out_id = f'_hydro_perturbed_{sample_id}'
-    #             for gdir in gdirs_3r_a5:
-    #                 try:
-    #                     workflow.execute_entity_task(
-    #                         tasks.run_with_hydro, [gdir],
-    #                         run_task=tasks.run_from_climate_data,
-    #                         ys=y0_clim, ye=ye_clim,
-    #                         max_ys=None, fixed_geometry_spinup_yr=None,
-    #                         store_monthly_hydro=True,
-    #                         store_model_geometry=True,
-    #                         store_fl_diagnostics=True,
-    #                         climate_filename='gcm_data',
-    #                         climate_input_filesuffix='_perturbed_{}'.format(
-    #                             sample_id),
-    #                         output_filesuffix=out_id,
-    #                         zero_initial_glacier=False, bias=0,
-    #                         temperature_bias=None, precipitation_factor=None,
-    #                         init_model_filesuffix='_spinup_historical',
-    #                         init_model_yr=y0_clim
-    #                     )
-
-    #                 except Exception as err:
-    #                     err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
-    #                                f"sample_id={sample_id}\n"
-    #                                f"{traceback.format_exc()}")
-    #                     logging.error(err_msg)
-    #                     errors.append(gdir.rgi_id)
-    #                     print(f"[ERROR] Logged: {gdir.rgi_id}")
+    errors = []
+    for m, model in enumerate(models):
+        for member in range(members[m]):
+            for s, ssp in enumerate(ssps):
+                for e, ex in enumerate(exp):
+                    if member >=1: #skip 0
+                        sample_id = f"{model}.00{member}"
+                        print(sample_id, ex, "SSP",ssp)
+                        if ex=="NOI":
+                            init_model_suffix = f'_perturbed_CESM2.00{member}'
+                            input_filesuffix = f"_SSP{ssp}_{ex}.00{member}_noi_bias"
+                        if ex == "IRR":
+                            init_model_suffix = f'_baseline_W5E5.000'
+                            input_filesuffix = f"_SSP{ssp}_{ex}.00{member}"
                         
-        
-    #             opath = os.path.join(
-    #                 # sum_dir, f'hydro_run_output_perturbed_{sample_id}_counterfactual.nc')
-    #                 sum_dir, f'hydro_run_output_perturbed_{sample_id}.nc')
-    #             ds_ptb = utils.compile_run_output(
-    #                 gdirs_3r_a5, input_filesuffix=out_id, path=opath)  # compile the run output
-        
-    #             log_path = os.path.join(
-    #                 log_dir, f'stats_perturbed_{sample_id}_hydro_run.nc')
-    #             df_stats = utils.compile_glacier_statistics(
-    #                 gdirs_3r_a5, path=log_path)
-    # if errors:
-    #     with open(os.path.join(sum_dir, "gdir_errors_hdyro_hist_baseline_noi_hist.txt"), "w") as f:
-    #         for rgi_id in errors:
-    #             f.write(rgi_id + "\n")
-    #     print(f"\n🚨 Finished with {len(errors)} gdir errors. See gdir_errors.txt.")
-    # else:
-    #     print("\n✅ All glaciers processed successfully.")
-
-    for gdir in gdirs_3r_a5:
-        try:
-            # # And run the climate model with reference data
-            workflow.execute_entity_task(tasks.run_with_hydro, [gdir],
-                                         run_task=tasks.run_from_climate_data,
-                                         ys=y0_clim, ye=ye_clim,
-                                         climate_filename='climate_historical',
-                                         # climate_input_filesuffix=
-                                         output_filesuffix='_hydro_baseline_W5E5.000',
-                                         init_model_filesuffix='_spinup_historical',
-                                         init_model_yr=y0_clim, store_fl_diagnostics=True,
-                                         store_monthly_hydro=True)
-            
-            
-        except Exception as err:
-            err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
-                       f"sample_id=W5E5.000\n"
-                       f"{traceback.format_exc()}")
-            logging.error(err_msg)
-            errors.append(gdir.rgi_id)
-            print(f"[ERROR] Logged: {gdir.rgi_id}")
+                        out_id = f'CESM2{input_filesuffix}_hydro'
                             
-    opath_base = os.path.join(sum_dir, 'hydro_run_output_baseline_W5E5.000.nc')
-    ds_base = utils.compile_run_output(
-        gdirs_3r_a5, input_filesuffix='_hydro_baseline_W5E5.000', path=opath_base)
-    
-    log_path_base = os.path.join(
-        log_dir, f'stats_perturbed_W5E5.000_hydro_run.csv')
+                        for gdir in gdirs:
+                            try:
+                                workflow.execute_entity_task(
+                                    tasks.run_with_hydro, [gdir],
+                                    run_task=tasks.run_from_climate_data,
+                                    ys=y0, ye=ye,
+                                    max_ys=None, fixed_geometry_spinup_yr=None,
+                                    store_monthly_step=False,
+                                    store_monthly_hydro=True,
+                                    store_model_geometry=True,
+                                    store_fl_diagnostics=True,
+                                    climate_filename='gcm_data',
+                                    climate_input_filesuffix=input_filesuffix,
+                                    output_filesuffix=out_id,
+                                    zero_initial_glacier=False, bias=0,
+                                    temperature_bias=None, precipitation_factor=None,
+                                    init_model_filesuffix=init_model_suffix,
+                                    init_model_yr=2014
+                                )
+
+                            except Exception as err:
+                                err_msg = (f"❌ ERROR for RGI_ID={gdir.rgi_id}, "
+                                           f"sample_id={sample_id}, ssp={ssp}, exp={ex}, member={member}\n"
+                                           f"{traceback.format_exc()}")
+                                logging.error(err_msg)
+                                errors.append(gdir.rgi_id)
+                                print(f"[ERROR] Logged: {gdir.rgi_id}")
+
+                        # Try compiling the output only if you want to after all gdirs are run
+                        try:
+                            print("Compiling member:", member)
+                            #                         )
+                            if ex=="NOI":
+                                opath = os.path.join(
+                                    sum_dir, f'climate_run_output_perturbed_SSP{ssp}_{sample_id}_noi_bias_hydro.nc')
+                            else:
+                                opath = os.path.join(
+                                    sum_dir, f'climate_run_output_perturbed_SSP{ssp}_{sample_id}_hydro.nc')
+                            ds_ptb = utils.compile_run_output(
+                                gdirs, input_filesuffix=out_id, path=opath
+                            )
+                        except Exception as err:
+                            logging.error(f"⚠️ Failed to compile output for {sample_id}\n{traceback.format_exc()}")
+
+    # Save all errors at the end
+    if errors:
+        with open(os.path.join(sum_dir, "gdir_errors_hdyro.txt"), "w") as f:
+            for rgi_id in errors:
+                f.write(rgi_id + "\n")
+        print(f"\n🚨 Finished with {len(errors)} gdir errors. See gdir_errors.txt.")
+    else:
+        print("\n✅ All glaciers processed successfully.")
+
 
 if __name__ == '__main__':
+    
+    gdirs = load_gdirs(pkls_subset)
+    subset_gdirs = gdirs 
+    
     multiprocessing.set_start_method('spawn', force=True)
-    main()        
-            
-            
-    
-    
+    main()     
 
 # %%
 # df_stats = utils.compile_glacier_statistics(

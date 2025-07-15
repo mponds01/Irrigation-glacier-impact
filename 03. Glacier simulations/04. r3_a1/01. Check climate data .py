@@ -48,9 +48,9 @@ import time
 from joblib import Parallel, delayed
 from datetime import datetime
 #%%
-# function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/src/03. Glacier simulations"
-# sys.path.append(function_directory)
-# from OGGM_data_processing import process_perturbation_data
+function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/src/03. Glacier simulations"
+sys.path.append(function_directory)
+from OGGM_data_processing import process_perturbation_data
 
 
 #%% Cell 0: Initialize OGGM with the preferred model parameter set up
@@ -265,7 +265,7 @@ im_temp = []
 im_prcp = []
 im_hgt = []
 members_averages = [1, 4]#3, 4, 6,4]
-models_shortlist = ["IPSL-CM6", "NorESM"]#"E3SM", "CESM2", "CNRM", 
+models_shortlist = ["IPSL-CM6"]#, "NorESM"]#"E3SM", "CESM2", "CNRM", 
 
 for i, (model, member_count) in enumerate(zip(models_shortlist, members_averages)):
     for member in range(member_count):
@@ -675,3 +675,128 @@ for m, model in enumerate(models):
                     plt.show()
                     
                     
+
+#%% Cell climate data IPSL absolute
+from matplotlib.colors import ListedColormap
+# fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(20, 10), constrained_layout=True)
+
+for m, model in enumerate(["IPSL-CM6"]):
+    for member in range(1):
+        if model =="IPSL-CM6" or member>=1:
+            
+            sample_id = f"{model}.00{member}"
+            climate_data_folder_path = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/01. Climate data/IPSL-CM6/"
+            climate_data_file_path_pr = f"{climate_data_folder_path}/Raw/IPSL-CM6.IRR001.1950_2014_pr_daily.nc"
+            
+            with xr.open_dataset(climate_data_file_path_pr) as ds:
+                monthly_sum = ds.resample(time_counter='1M').sum(keep_attrs=True)
+                # plt.plot(monthly_sum.time_counter, monthly_sum.pr)
+                monthly_sum = monthly_sum.sel(time_counter=slice('1985-01-31', '2014-12-31'))
+                monthly_clim = monthly_sum.groupby('time_counter.month').mean()
+                
+pr = monthly_clim['pr']
+
+pr = pr.where((pr.lon >= 60) & (pr.lon <= 109) & (
+    pr.lat >= 22) & (pr.lat <= 52), drop=True)
+
+fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(20, 10), constrained_layout=True)
+white_cmap = ListedColormap(['white'])
+
+for i, ax in enumerate(axes.flat):
+    # Select month i+1 (because Python is 0-based, your months are 1-based)
+    data = pr.sel(month=i+1)
+
+    # Plot the data
+    im = ax.pcolormesh(pr['lon'], pr['lat'], data, shading='auto')
+    
+    # Overlay where pr == 0
+    mask = np.where(data == 0, 1, np.nan)  # 1 where zero, NaN elsewhere
+    
+    ax.pcolormesh(
+        pr['lon'], pr['lat'], mask,
+        shading='auto',
+        cmap=white_cmap,
+        vmin=0, vmax=1  # So all '1' plots as red
+    )
+
+    ax.set_title(f'Month {i+1}')
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+
+    # Optional: Add coastlines if you use cartopy
+    # Or just basic axes here
+
+# Add a colorbar for the last plot (or you can use fig.colorbar)
+fig.colorbar(im, ax=axes.ravel().tolist(), shrink=0.7, label='pr')
+
+plt.show()
+#%% Compare previous output files
+
+timeframe="monthly"
+model="IPSL-CM6"
+members = [1]
+y0=1985
+ye=2014
+
+for m, model in enumerate(["IPSL-CM6"]):
+    for member in range(members[m]):
+        if model =="IPSL-CM6" or member>=1:
+            
+            sample_id = f"{model}.00{member}"
+            # climate_data_folder_path = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/01. Input files/01. Climate data/IPSL-CM6/"
+            # climate_data_file_path_pr = f"{climate_data_folder_path}/1985/IPSL-CM6.NOI.000.1985_2014_selparam_monthly_total.nc"
+            climate_data_folder_path = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/04. Perturbation Timeseries/Precipitation/monthly/IPSL-CM6/0/"
+            # climate_data_folder_path = f"/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/03. Data/03. Output files/01. Climate data/02. Perturbations/Precipitation/monthly/IPSL-CM6/0/"
+            # climate_data_file_path_pr = f"{climate_data_folder_path}/IPSL-CM6.PR.DIF.000.1985_2014_monthly_rel.nc"
+            climate_data_file_path_pr = f"{climate_data_folder_path}/REGRID.perturbation.timeseries.PR.IPSL-CM6.000.1985_2014_monthly.nc"
+            
+            
+            with xr.open_dataset(climate_data_file_path_pr) as ds:
+                            # monthly_sum = ds.resample(time_counter='1M').sum(keep_attrs=True)
+                            # # plt.plot(monthly_sum.time_counter, monthly_sum.pr)
+                            # monthly_sum = monthly_sum.sel(time_counter=slice('1985-01-31', '2014-12-31'))
+                            # monthly_clim = monthly_sum.groupby('time_counter.month').mean()
+                            
+                            pr = ds['pr']# monthly_clim['pr']
+            
+            pr = pr.where((pr.lon >= 60) & (pr.lon <= 109) & (
+                pr.lat >= 22) & (pr.lat <= 52), drop=True)
+            
+            fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(20, 10), constrained_layout=True)
+            white_cmap = ListedColormap(['white'])
+            
+            for i, ax in enumerate(axes.flat):
+                # Select month i+1 (because Python is 0-based, your months are 1-based)
+                data = pr.sel(month=i+1)
+            
+                # Plot the data
+                im = ax.pcolormesh(pr['lon'], pr['lat'], data, shading='auto')
+                
+                # Overlay where pr == 0
+                mask = np.where(data == 0, 1, np.nan)  # 1 where zero, NaN elsewhere
+                
+                ax.pcolormesh(
+                    pr['lon'], pr['lat'], mask,
+                    shading='auto',
+                    cmap=white_cmap,
+                    vmin=0, vmax=1  # So all '1' plots as red
+                )
+            
+                ax.set_title(f'Month {i+1}')
+                ax.set_xlabel('Longitude')
+                ax.set_ylabel('Latitude')
+            
+                # Optional: Add coastlines if you use cartopy
+                # Or just basic axes here
+            
+            # Add a colorbar for the last plot (or you can use fig.colorbar)
+            fig.colorbar(im, ax=axes.ravel().tolist(), shrink=0.7, label='pr')
+            
+            plt.show()          
+                    
+     #%%
+path="/Users/magaliponds/Documents/00. Programming/04. Modelled perturbation-glacier interactions - R13-15 A+1km2/per_glacier/RGI60-15/RGI60-15.06/RGI60-15.06237/"
+opath=os.path.join(path, f'climate_historical.nc')       
+with xr.open_dataset(opath) as ds:
+    print(ds.time)
+    

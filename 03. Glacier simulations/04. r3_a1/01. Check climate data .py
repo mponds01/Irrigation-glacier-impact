@@ -4,6 +4,9 @@
 Created on Fri May 23 12:44:11 2025
 
 @author: magaliponds
+
+This script plots climate perturbations (after running in OGGM) as a test to see if they are processed correctly
+
 """
 
 

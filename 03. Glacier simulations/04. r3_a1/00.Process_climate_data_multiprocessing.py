@@ -14,7 +14,8 @@ Created on Wed Jul  3 15:36:52 2024
 
 @author: magaliponds
 
-This code runs perturbs the climate data and adds this to the baseline climate in OGGM and runs the climate & MB model with this data"""
+This code runs perturbs the climate data for future simulations (2015-2074)
+and adds this to the baseline climate in OGGM and runs the climate & MB model with this data"""
 
 
 # -*- coding: utf-8 -*-import oggm

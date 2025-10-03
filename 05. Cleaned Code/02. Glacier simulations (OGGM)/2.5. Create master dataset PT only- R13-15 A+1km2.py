@@ -61,7 +61,7 @@ import textwrap
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
-function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Coding/01. IRRMIP/src/03. Glacier simulations"
+function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/src/05. Cleaned Code/ 02. Glacier simulations (OGGM)"
 sys.path.append(function_directory)
 
 #%% Cell 0b: Initialize OGGM with the preferred model parameter set up

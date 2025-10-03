@@ -41,7 +41,7 @@ Cell 16c: Plot reference data on top of our future simulations - relative to 201
 #%% Cell 0: Load custom OGGM functions
 import os
 import sys
-function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/src/03. Glacier simulations"
+function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/src/05. Cleaned Code/ 02. Glacier simulations (OGGM)"
 sys.path.append(function_directory)
 
 #%% Cell 0b: Load packages
@@ -1163,12 +1163,33 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
         #     color=colors[f'{exp}{add}'][s],
         #     linestyle=ls, linewidth=lw_melt
         # )
+        # future = (
+        #     hist_ssp.loc[is_future, ['year', 'relative_runoff_smoothed']]
+        #       .merge(
+        #           hist_ssp_std.loc[is_future, ['year', 'relative_runoff_smoothed']],
+        #           on='year', how='inner', suffixes=('', '_std')
+        #       )
+        # )
         
+        # future['runoff_pct'] = future['relative_runoff_smoothed'] * 100
+        # future['std_pct']    = future['relative_runoff_smoothed_std'] * 100
         years = hist_ssp.loc[is_future, 'year'].values
         runoff = hist_ssp.loc[is_future, 'relative_runoff_smoothed'].values*100
+        runoff_std = hist_ssp_std.loc[is_future, 'relative_runoff_smoothed'].values*100
+        
+        print("runoff values", runoff)
+        print("std of runoff", runoff_std)
         
         for y,r in zip(years,runoff):
             totals.append((exp, ssp, y, r))
+        
+        # totals.extend(zip(
+        #     [exp]*len(future),
+        #     [ssp]*len(future),
+        #     future['year'],
+        #     future['runoff_pct'],
+        #     future['std_pct'],
+        # ))
         
         peak_year=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'year']
         peak_magnitude=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'relative_runoff_smoothed']
@@ -1525,6 +1546,7 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
                 
                 peak_year=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'year']
                 peak_magnitude=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'runoff_smoothed']
+                
                 # peak_magnitude=hist_ssp.loc[hist_ssp['relative_runoff_smoothed'].idxmax(), 'relative_runoff_smoothed']
                 
                 peak_water_dict = {
@@ -1737,6 +1759,9 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
         # ax.axvline(peak_year, color=color, linestyle=ls, lw=lw_tot-2)
         ax.scatter(peak_year, peak_magnitude,marker='o', s=100, facecolor=face_color, edgecolor=color, linewidths=5)  # thicker edge)
         print(peak_year, peak_magnitude)
+        peak_std=hist_ssp_std.loc[hist_ssp['runoff_smoothed'].idxmax(), 'runoff_smoothed']
+        print(peak_year, ssp, peak_std)
+        
         ax.ticklabel_format(style='scientific')
     
     if ax==None: #set figure labels later in overall figure

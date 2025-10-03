@@ -66,7 +66,7 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
 import sys
 
-function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/src/03. Glacier simulations"
+function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/src/05. Cleaned Code/ 02. Glacier simulations (OGGM)"
 sys.path.append(function_directory)
 
 # %% Cell 0c: Set base parameters

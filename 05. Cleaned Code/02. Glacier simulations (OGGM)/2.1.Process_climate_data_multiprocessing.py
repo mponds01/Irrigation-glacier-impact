@@ -86,7 +86,7 @@ import time
 from joblib import Parallel, delayed
 import traceback
 # %% Cell 0b: Load function directory for custom python functions
-function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/src/03. Glacier simulations"
+function_directory = "/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/src/05. Cleaned Code/ 02. Glacier simulations (OGGM)"
 sys.path.append(function_directory)
 from OGGM_data_processing import process_perturbation_data
 

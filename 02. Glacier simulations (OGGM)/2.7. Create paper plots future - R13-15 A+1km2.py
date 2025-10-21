@@ -276,7 +276,8 @@ for reg, region in enumerate(regions):
                         # print(input_filesuffix)
                         # path_fut = os.path.join(sum_dir, f'climate_run_output{input_filesuffix}.nc')
                         # if ex == "NOI":
-                        path_fut = os.path.join(sum_dir, f'climate_run_output{input_filesuffix}_noi_bias.nc')
+                        path_fut = os.path.join(sum_dir, f'climate_run_output{input_filesuffix}_noi_bias_2074.nc')
+                        # path_fut = os.path.join(sum_dir, f'climate_run_output{input_filesuffix}_noi_bias.nc')
                         # else:
                             # path_fut = os.path.join(sum_dir, f'climate_run_output{input_filesuffix}.nc')
 
@@ -360,8 +361,8 @@ for rec in future_records:
 df_future = pd.DataFrame(flat_future)
 future_ds = df_future.set_index(["exp", "sample_id", "ssp", "subregion", "time"]).to_xarray()
 
-past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past_median.nc")
-future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_median.nc")
+past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past_median_2074.nc")
+future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_median_2074.nc")
 
 # past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past.nc")
 # future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias.nc")
@@ -400,6 +401,7 @@ ds_future_total = pd.DataFrame(flat_future_total).set_index(["exp", "sample_id",
 
 ds_with_total = xr.concat([future_ds, ds_future_total], dim='subregion')
 ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total.nc")
+# ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total_2074.nc")
 # Save to disk
 
 
@@ -434,8 +436,11 @@ def historic_future_volume_evolution_hma(ax=None):
     # past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past.nc")
     # # future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future.nc")
     # future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias.nc")
-    past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past_median.nc")
-    future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_median.nc")
+    # past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past_median.nc")
+    # future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_median.nc")
+    past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past_median_2074.nc")
+    future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_median_2074.nc")
+    
     initial_vol = past_ds.sel(time=1985).volume
     initial_volume_big=initial_vol.sel(exp="IRR").sel(sample_id="CESM2.001").sum(dim='subregion')
     p=0
@@ -551,7 +556,7 @@ def historic_future_volume_evolution_hma(ax=None):
             sum_big = (future_ds.volume.sel(exp=ex).sel(ssp=ssp).sel(sample_id='3-member-avg').sum(dim='subregion')/initial_volume_big)*100-100
             ax.fill_between(future_ds.time, sum_big-std_big,sum_big+std_big, color=color, alpha=0.2)
             ax.plot(future_ds.time, sum_big,  color=color, label=f"Future {ex} SSP 3-member average", ls=ls, linewidth=3)
-            
+            print("end future timeseries:", future_ds.time[-1])
             annotation=np.round(sum_big[-1].values, decimals=2)
             annotations[s,e] = annotation
     
@@ -690,7 +695,7 @@ for ex in experiments:
                         
                         
                         total_runoff = melt_on + melt_off + prcp_on + prcp_off + snow_on + snow_off#sum all the runoff components
-                        # total_runoff = melt_on + prcp_on #+ melt_off + prcp_on + prcp_off #for melt_on only
+                        # total_runoff = melt_on #+ prcp_on #+ melt_off + prcp_on + prcp_off #for melt_on only
 
                         
                         eps = 0#1e-10
@@ -733,9 +738,11 @@ for ex in experiments:
         for member in range(1, 4):
             sample_id = f"CESM2.00{member}"
             if ex == "irr":
-                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_hydro.nc"
+                # hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_hydro.nc"
+                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_hydro_2074.nc"
             else:
-                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_noi_bias_hydro.nc"
+                # hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_noi_bias_hydro.nc"
+                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_noi_bias_hydro_2074.nc"
             try:
                 with xr.open_dataset(hydro_data_path) as ds:
                     
@@ -746,6 +753,7 @@ for ex in experiments:
                     snow_on = ds['snowfall_on_glacier_monthly'] * 1e-9
                     snow_off = ds['snowfall_off_glacier_monthly'] * 1e-9
                     total_runoff = melt_on + melt_off + prcp_on + prcp_off + snow_on + snow_off#sum all the runoff components
+                    # total_runoff = melt_on #+ prcp_on #+ prcp_off + snow_on + snow_off#sum all the runoff components
                     
                     eps = 0#1e-10
                     shares = xr.Dataset({
@@ -783,17 +791,21 @@ df_annual = df_monthly_all.groupby(['year', 'experiment', 'ssp', 'member', 'rgi_
 df_runoff_shares = pd.concat(df_runoff_shares, ignore_index=True)
 
 #filepaths for only melt runoff components
-# opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only.csv')
-# opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only.csv')
+# opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only_2074.csv')
+# opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only_2074.csv')
 
 #file paths for only melt and precipitation runoff components
 # opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_meltprcpon_only.csv')
 # opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_meltprcpon_only.csv')
 
 #file paths including all runoff components
-opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions.csv')
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions.csv')
-opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares.csv')
+# opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions.csv')
+# opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions.csv')
+# opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares.csv')
+
+opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_2074.csv')
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_2074.csv')
+opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares_2074.csv')
 
 
 df_monthly_all.to_csv(opath_df_monthly)
@@ -807,18 +819,18 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     peak_water_list=[]
     plotting_subregions='off' #specify if one plot or also subplots
     #when working with melton only
-    opath_df_monthly_melt = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only.csv')
-    opath_df_annual_melt = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only.csv')
+    opath_df_monthly_melt = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only_2074.csv')
+    opath_df_annual_melt = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only_2074.csv')
     
     #when working with melton and prcp on only
     # opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_meltprcpon_only.csv')
     # opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_meltprcpon_only.csv')
     # 
     #when working with total runoff|
-    opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions.csv')
-    opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions.csv')
+    opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_2074.csv')
+    opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_2074.csv')
     
-    opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares.csv')
+    opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares_2074.csv')
     
     #load annual data for all runoff
     df_annual = pd.read_csv(opath_df_annual).reset_index()
@@ -835,16 +847,18 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     # df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin([6, 7, 8])]
     df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin(np.arange(1,13,1))] #if we want full year
     df_avg_subregions = (df_avg_jja.groupby(['year', 'experiment', 'ssp', 'rgi_subregion'])['runoff'].sum().reset_index()) #sum yo annual runoff for all subregions per year
-    df_avg_subregions = df_avg_subregions[~df_avg_subregions['year'].isin([2074])] 
+    # df_avg_subregions = df_avg_subregions[~df_avg_subregions['year'].isin([2074])] 
     df_avg_all = (df_avg_subregions.groupby(['year', 'experiment', 'ssp'])['runoff'].sum().reset_index()) #sum for all subregions in HMA
     
+    print(df_monthly[df_monthly['year']==2074])
     df_monthly_std_in = df_monthly[df_monthly['runoff'] != 0.00] #exclude zeros as last year of simulation does not work
     df_avg_monthly_for_std = (df_monthly_std_in.groupby(['year', 'experiment', 'ssp', 'member'])['runoff'].sum().reset_index()) #calculate annual sum of runoff for the different members for hma overall
-    df_avg_monthly_for_std = df_avg_monthly_for_std[~df_avg_monthly_for_std['year'].isin([2074])] 
+    # df_avg_monthly_for_std = df_avg_monthly_for_std[~df_avg_monthly_for_std['year'].isin([2074])] 
     df_avg_annual_std_all = (df_avg_monthly_for_std.groupby(['year', 'experiment', 'ssp'])['runoff'].std().reset_index()) #take std before rolling mean (otherwise std is smoothened too much, losing variability)
     df_avg_annual_std_all['runoff'] = df_avg_annual_std_all['runoff'].fillna(0) #hist irr is nan because only 1 member - make zero for plotting
     
     
+    # print(df_avg_all)
     #process data for melt only runoff
     # df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
     df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #median over members
@@ -852,12 +866,12 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     # df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin([6, 7, 8])]
     df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin(np.arange(1,13,1))] #if we want full year
     df_avg_subregions_melt = (df_avg_jja_melt.groupby(['year', 'experiment', 'ssp', 'rgi_subregion'])['runoff'].sum().reset_index()) #sum yo annual runoff for all subregions per year
-    df_avg_subregions_melt = df_avg_subregions_melt[~df_avg_subregions_melt['year'].isin([2074])] 
+    # df_avg_subregions_melt = df_avg_subregions_melt[~df_avg_subregions_melt['year'].isin([2074])] 
     df_avg_all_melt = (df_avg_subregions_melt.groupby(['year', 'experiment', 'ssp'])['runoff'].sum().reset_index()) #sum for all subregions in HMA
     
     df_monthly_std_in_melt = df_monthly_melt[df_monthly_melt['runoff'] != 0.00] #exclude zeros as last year of simulation does not work
     df_avg_monthly_for_std_melt = (df_monthly_std_in_melt.groupby(['year', 'experiment', 'ssp', 'member'])['runoff'].sum().reset_index()) #calculate annual sum of runoff for the different members for hma overall
-    df_avg_monthly_for_std_melt = df_avg_monthly_for_std_melt[~df_avg_monthly_for_std_melt['year'].isin([2074])] 
+    # df_avg_monthly_for_std_melt = df_avg_monthly_for_std_melt[~df_avg_monthly_for_std_melt['year'].isin([2074])] 
     df_avg_annual_std_all_melt = (df_avg_monthly_for_std_melt.groupby(['year', 'experiment', 'ssp'])['runoff'].std().reset_index()) #take std before rolling mean (otherwise std is smoothened too much, losing variability)
     df_avg_annual_std_all_melt['runoff'] = df_avg_annual_std_all_melt['runoff'].fillna(0) #hist irr is nan because only 1 member - make zero for plotting
     
@@ -1075,7 +1089,7 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
         #     linestyle=ls, linewidth=lw_tot, alpha=0.1     
         # )
         
-        print(hist_ssp.loc[is_hist, 'relative_runoff_smoothed'])
+        # print(hist_ssp.loc[is_hist, 'relative_runoff_smoothed'])
         #Plot std for relative
         ax.fill_between(
             hist_ssp.loc[is_hist, 'year'],
@@ -1177,8 +1191,8 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
         runoff = hist_ssp.loc[is_future, 'relative_runoff_smoothed'].values*100
         runoff_std = hist_ssp_std.loc[is_future, 'relative_runoff_smoothed'].values*100
         
-        print("runoff values", runoff)
-        print("std of runoff", runoff_std)
+        # print("runoff values", runoff)
+        # print("std of runoff", runoff_std)
         
         for y,r in zip(years,runoff):
             totals.append((exp, ssp, y, r))
@@ -1194,9 +1208,9 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
         peak_year=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'year']
         peak_magnitude=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'relative_runoff_smoothed']
         
-        print("High Mountain Asia", exp, ssp)
-        print("Peak year", peak_year, "Peak Magnitude", peak_magnitude)
-        print("final runoff 2074", hist_ssp.loc[hist_ssp['year']==2073]['runoff_smoothed'])
+        # print("High Mountain Asia", exp, ssp)
+        # print("Peak year", peak_year, "Peak Magnitude", peak_magnitude)
+        # print("final runoff 2074", hist_ssp.loc[hist_ssp['year']==2074]['runoff_smoothed'])
         
         peak_water_dict = {
             'rgi_subregion': 'hma',
@@ -1217,11 +1231,11 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
         # print(peak_year, peak_magnitude)
     
     records_df = pd.DataFrame(totals, columns=["experiment", "ssp", "year", "runoff"])
-    print(records_df)
+    # print(records_df)
     df_pivot = records_df.pivot_table(index=["ssp", "year"], columns="experiment", values="runoff").reset_index()
     df_pivot["diff"] = df_pivot["irr"] - df_pivot["noi"]
     results = df_pivot.loc[df_pivot.groupby("ssp")["diff"].idxmax(), ["ssp", "year", "diff"]]
-    print(results)
+    # print(results)
     
     if ax==None: #set figure labels later in overall figure
         fig.text(
@@ -1276,10 +1290,10 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     
     ax.set_xlim(1980.55, 2078.45)
     ax.set_ylim(-1.850978400467218, 36.08317127736037)
-    print(ax.get_xlim()[0])
-    print(ax.get_xlim()[1])
-    print(ax.get_ylim()[0])
-    print(ax.get_ylim()[1])
+    # print(ax.get_xlim()[0])
+    # print(ax.get_xlim()[1])
+    # print(ax.get_ylim()[0])
+    # print(ax.get_ylim()[1])
     
     # Add to figure/axes
     if ax==None: #only set legend if single figure
@@ -1291,7 +1305,7 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     # plt.ylabel('Runoff [km³]')
     # plt.legend()
     # plt.show()
-    opath_dict_pw = os.path.join(wd_path,'masters','hydro_peak_water_dictionary_subregions.csv')
+    opath_dict_pw = os.path.join(wd_path,'masters','hydro_peak_water_dictionary_subregions_2074.csv')
     df = pd.DataFrame(peak_water_list)
     # df.to_csv(opath_dict_pw, index=False) #only run when subregions on
 
@@ -1310,8 +1324,8 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
     peak_water_list=[]
     plotting_subregions='on' #specify if one plot or also subplots
     #when working with melton only
-    opath_df_monthly_melt = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only.csv')
-    opath_df_annual_melt = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only.csv')
+    opath_df_monthly_melt = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only_2074.csv')
+    opath_df_annual_melt = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only_2074.csv')
     
     #when working with melton and prcp on only
     # opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_meltprcpon_only.csv')
@@ -1815,7 +1829,7 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
     # plt.ylabel('Runoff [km³]')
     # plt.legend()
     # plt.show()
-    opath_dict_pw = os.path.join(wd_path,'masters','hydro_peak_water_dictionary_subregions.csv')
+    opath_dict_pw = os.path.join(wd_path,'masters','hydro_peak_water_dictionary_subregions_2074.csv')
     df = pd.DataFrame(peak_water_list)
     ax.tick_params(labelsize=14)
     # df.to_csv(opath_dict_pw, index=False) #only run when subregions on
@@ -1872,9 +1886,9 @@ ax_timeline =  annual_runoff_timeline_plot_hma_subregions()
 # opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only.csv')
 # opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only.csv')
 
-opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions.csv')
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions.csv')
-opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares.csv')
+opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_2074.csv')
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_2074.csv')
+opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares_2074.csv')
 
 
 df_annual = pd.read_csv(opath_df_annual).reset_index()
@@ -2311,9 +2325,9 @@ for ex in experiments:
         for member in range(1, 4):
             sample_id = f"CESM2.00{member}"
             if ex == "irr":
-                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_hydro.nc"
+                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_hydro_2074.nc"
             else:
-                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_noi_bias_hydro.nc"
+                hydro_data_path = f"{wd_path}/summary/climate_run_output_perturbed_SSP{ssp}_{sample_id}_noi_bias_hydro_2074.nc"
             try:
                 with xr.open_dataset(hydro_data_path) as ds:
                     
@@ -2363,7 +2377,7 @@ df_annual=df_monthly_all_concat #if already selected upfront that annual instead
 # opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_meltprcpon_only_per_rgi_id.csv')
 
 #file paths including all runoff components
-opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_per_rgi_id.csv')
+opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_per_rgi_id_2074.csv')
 # opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_per_rgi_id_preselected.csv')
 
 
@@ -2374,7 +2388,7 @@ df_monthly_all_concat.to_csv(opath_df_monthly)
 #%% Cell 10: Convert runoff to annual, per rgi_ID
 
 """Group into annual - else kernel dies"""
-opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_per_rgi_id.csv') #work from monthly as annual processing comes later
+opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_per_rgi_id_2074.csv') #work from monthly as annual processing comes later
 df_monthly = pd.read_csv(opath_df_monthly)
 df_monthly['ssp'] = df_monthly['ssp'].astype(str) #assure same type, otherwise strange grouping
 
@@ -2388,14 +2402,14 @@ df_avg_subregions = (df_avg_jja.groupby(['year', 'experiment', 'ssp', 'member', 
 df_avg_subregions = df_avg_subregions[~df_avg_subregions['year'].isin([2014,2074])] 
 # df_avg_all = (df_avg_subregions.groupby(['year', 'experiment', 'ssp','rgi_id'])['runoff'].sum().reset_index()) #sum for all subregions in HMA
 
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id.csv') #work from monthly as annual processing comes later
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id_2074.csv') #work from monthly as annual processing comes later
 df_avg_subregions.to_csv(opath_df_annual)
 
 
 #%% Cell 11: stack historical to different ssps
 # Separate historical and future data
 
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id.csv') #work from annual, and align per member 
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id_2074.csv') #work from annual, and align per member 
 df_annual=pd.read_csv(opath_df_annual)
 
 hist_df = df_annual[df_annual['ssp'] == 'hist'].copy()
@@ -2432,11 +2446,11 @@ df_irr = pd.concat(irr_list, ignore_index=True)
 
 # Combine both
 df_combined = pd.concat([df_noi, df_irr], ignore_index=True)
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id_preselected_stacked_histssp.csv')
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id_preselected_stacked_histssp_2074.csv')
 df_combined.to_csv(opath_df_annual)
 
 df_combined_subregions = df_combined.groupby(['year', 'experiment', 'ssp', 'member', 'rgi_subregion'])['runoff'].sum().reset_index()
-opath_df_annual_subregions = os.path.join(wd_path,'masters','hydro_output_annual_per_subregion_preselected_stacked_histssp.csv')
+opath_df_annual_subregions = os.path.join(wd_path,'masters','hydro_output_annual_per_subregion_preselected_stacked_histssp_2074.csv')
 df_combined_subregions.to_csv(opath_df_annual_subregions)
 
 
@@ -2446,7 +2460,7 @@ df_combined_subregions.to_csv(opath_df_annual_subregions)
 #operation is quite time consuming as contains many rgi_ids, years combinations
 
 
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id_preselected_stacked_histssp.csv')
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_rgi_id_preselected_stacked_histssp_2074.csv')
 df_annual = pd.read_csv(opath_df_annual)
 
 
@@ -2483,7 +2497,7 @@ summary_all = (
 )
 
 
-opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_member_avg.csv')
+opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_member_avg_2074.csv')
 summary_all.to_csv(opath_df_summary)
 
 #%% Cell 13a:  Process and calculate the peak water time per subregion per member and across 3 members
@@ -2491,7 +2505,7 @@ summary_all.to_csv(opath_df_summary)
 #operation is quite time consuming as contains many rgi_ids, years combinations
 
 
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_subregion_preselected_stacked_histssp.csv')
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_per_subregion_preselected_stacked_histssp_2074.csv')
 df_annual = pd.read_csv(opath_df_annual)
 
 
@@ -2513,7 +2527,7 @@ group_cols = ['rgi_subregion', 'experiment', 'ssp','member']
 # Add a 'member' label for the median
 df_median['member'] = 'member_median'
 
-df_median.to_csv(os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_ts.csv'))
+df_median.to_csv(os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_ts_2074.csv'))
 
 # Append to df_annual
 df_annual_with_median = pd.concat([df_annual, df_median], ignore_index=True)
@@ -2531,11 +2545,11 @@ summary_all = (
     .reset_index(drop=True)
 )
 
-opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg.csv')
+opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_2074.csv')
 summary_all.to_csv(opath_df_summary)
 #%% Cell 13b: Link rgi subregions to coordinates 
 
-opath_dict_pw = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg.csv')
+opath_dict_pw = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_2074.csv')
 pw = pd.read_csv(opath_dict_pw)
 
 df = pd.read_csv(
@@ -2550,12 +2564,12 @@ merged_df = pw.merge(master_ds_unique, on='rgi_subregion', how='left')
 
 merged_df.loc[merged_df['rgi_subregion'] == 'hma', 'full_name'] = 'High Mountain Asia'
 
-opath_merged_df = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_rgi_info.csv')
+opath_merged_df = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_rgi_info_2074.csv')
 merged_df.to_csv(opath_merged_df)
 
 #%% Cell 13c: Link rgi_id to coordinates for filtered dataset
 
-opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_member_avg.csv')
+opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_member_avg_2074.csv')
 # opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg.csv')
 summary = pd.read_csv(opath_df_summary)
 
@@ -2578,13 +2592,13 @@ master_ds = master_ds[['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'ce
 
 merged_sum = summary.merge(master_ds, on='rgi_id', how='left')
 
-opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_rgi_info.csv')
+opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_rgi_info_2074.csv')
 merged_sum.to_csv(opath_df_summary)
 #%% Cell 14a: Create peak water plots on map (key figure - extended data)
 
 # merged_sum = plot_df.merge(master_ds, on='rgi_subregion', how='left')
 
-opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_rgi_info.csv')
+opath_df_summary = os.path.join(wd_path,'masters','hydro_output_peakwater_per_rgi_id_rgi_info_2074.csv')
 plot_df = pd.read_csv(opath_df_summary)
 plot_df=plot_df[plot_df['member']=='member_median']
 #regrid based on 1x1 degree grid
@@ -2755,11 +2769,11 @@ plt.tight_layout()
 # plt.savefig(os.join_path())
 fig_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBrussel/1. VUB/02. Research/01. IRRMIP/04. Figures/98. Final Figures A+1km2/'
 os.makedirs(f"{fig_path}/Extended_Data", exist_ok=True)
-plt.savefig(f"{fig_path}/Extended_Data/Peak_water_mapplot.png", dpi=300, bbox_inches="tight", pad_inches=0.1)
+plt.savefig(f"{fig_path}/Extended_Data/Peak_water_mapplot_2074.png", dpi=300, bbox_inches="tight", pad_inches=0.1)
 plt.show()
 
 #%% Cell 14b: Sense check for comparison - create runoff timeline overview
-opath_df_summary_ts = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_ts.csv')
+opath_df_summary_ts = os.path.join(wd_path,'masters','hydro_output_peakwater_per_subregion_member_avg_ts_2074.csv')
 df_annual_with_median =pd.read_csv(opath_df_summary_ts)
 
 fig,axes = plt.subplots(5,3, figsize=(10,7))
@@ -2785,7 +2799,7 @@ def peak_water_scatter_plot(ax=None):
 # ax=None
 # === Load Data ===
     # opath_df_summary = os.path.join(wd_path, 'masters', 'hydro_output_peakwater_per_rgi_id_subregions.csv')
-    opath_df_summary = os.path.join(wd_path, 'masters', 'hydro_peak_water_dictionary_subregions_rgi_info.csv') 
+    opath_df_summary = os.path.join(wd_path, 'masters', 'hydro_peak_water_dictionary_subregions_rgi_info_2074.csv') 
     # opath_df_summary = os.path.join(wd_path, 'masters', 'hydro_output_peakwater_per_subregion_member_avg_rgi_info.csv')
     
     
@@ -3009,8 +3023,6 @@ plt.show()
 
 
 
-
-
 #%% Cell 16: Open and process reference data
 
 rho = 0.917 #kg/m3
@@ -3085,7 +3097,7 @@ resp_values_dict={}
 linestyles = ['solid', 'dashed']
 past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past.nc")
 # future_ds = xr.open_dataset(f"{wd_path}masters/master_volume_subregion_future.nc")
-future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias.nc")
+future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_2074.nc")
 initial_vol = past_ds.sel(time=1985).volume*10e-9
 initial_volume_big=initial_vol.sel(exp="IRR").sel(sample_id="CESM2.001").sum(dim='subregion')
 initial_volume_pct_rounce = (past_ds.sel(time=2000).sel(exp="IRR").sel(sample_id="CESM2.001").volume.sum(dim='subregion')/initial_vol.sel(exp="IRR").sel(sample_id="CESM2.001").sum(dim='subregion'))*100

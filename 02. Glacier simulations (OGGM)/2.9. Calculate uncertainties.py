@@ -188,57 +188,275 @@ master_ds = master_ds[['rgi_id', 'rgi_region', 'rgi_subregion','full_name', 'cen
 
 master_ds = master_ds[master_ds['B_irr'].notna()]
 
-# calculate for each subregion the average B_irr and B_noirr for all the different sample ids
+
+# calculate for each subregion the average weighted average B_irr and B_noirr for all the different sample ids
 master_ds_avg_subregions = master_ds.groupby(['rgi_subregion','sample_id'], as_index=False).agg({  # calculate the average regional mass balance over subregion per sample id
     # 'B_delta': 'mean',
     'B_delta': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(), #area weighted mean mass balance in the region
+    'B_irr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
+    'B_noirr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
     'Area': 'sum',
     'errB_hugo': 'mean',
     'rgi_date':'mean',
     'rgi_volume_km3': 'sum',
     'rgi_area_km2':'sum',
-    **{col: 'first' for col in master_ds.columns if col not in ['B_delta']}})[[ 'rgi_region', 'rgi_subregion',
-       'full_name', 'B_delta', 'rgi_area_km2',
+    **{col: 'first' for col in master_ds.columns if col not in ['B_delta', 'B_irr', "B_noirr"]}})[[ 'rgi_region', 'rgi_subregion',
+       'full_name', 'B_delta', 'B_irr', "B_noirr",'rgi_area_km2',
        'rgi_volume_km3', 'sample_id',  'Area', 'errB_hugo']]
 
 
 #calculate the std across the sample_id dimension                                                                                        
 std_per_subregion = (
     master_ds_avg_subregions
-    .groupby("rgi_subregion")[["B_delta"]]
-    .std()
+    .groupby("rgi_subregion")[["B_irr", "B_noirr", "B_delta"]]
+    .std(ddof=1)
     .reset_index()
-    .rename(columns={"B_delta": "B_delta_std"})
+    .rename(columns={ "B_irr": "B_irr_std",
+        "B_noirr": "B_noirr_std",
+        "B_delta": "B_delta_std"
+    })
+)
+
+manual = (
+    master_ds_avg_subregions
+    .loc[master_ds_avg_subregions['rgi_subregion'] == '15-01', 'B_noirr']
+    .std(ddof=1)
 )
 
 #calculate the mean for all hma for different sample ids
 master_ds_avg = master_ds.groupby(['sample_id'], as_index=False).agg({  # calculate the average mass balance over subregion per sample id
     'B_delta': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(), #area weighted mean mass balance in the region
+    'B_irr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
+    'B_noirr': lambda x: (x * master_ds.loc[x.index, 'rgi_area_km2']).sum() / master_ds.loc[x.index, 'rgi_area_km2'].sum(),
     'Area': 'sum',
     'errB_hugo': 'mean',
     'rgi_date':'mean',
     'rgi_volume_km3': 'sum',
     'rgi_area_km2':'sum',
     **{col: 'first' for col in master_ds.columns if col not in ['B_delta']}})[[ 'rgi_region', 'rgi_subregion',
-       'full_name', 'B_delta', 'rgi_area_km2',
+       'full_name', 'B_delta', 'B_irr',"B_noirr", 'rgi_area_km2',
        'rgi_volume_km3', 'sample_id',  'Area', 'errB_hugo']]
 
    
 #calculate the std for all hma across sample id dimension
 std_hma = (
     master_ds_avg
-    .groupby("rgi_subregion")[["B_delta"]]
+    .groupby("rgi_subregion")[["B_irr", "B_noirr", "B_delta"]]
     .std()
     .reset_index()
-    .rename(columns={"B_delta": "B_delta_std"})
-)
+    .rename(columns={"B_irr": "B_irr_std",
+        "B_noirr": "B_noirr_std",
+        "B_delta": "B_delta_std"}))
+    
 std_hma["rgi_subregion"] = "HMA"
 std_B_concat = pd.concat([std_per_subregion,std_hma], ignore_index=True)  # stack rows
 std_B_concat['B_delta_std_95CI']=std_B_concat['B_delta_std']*1.96
 
-std_B_concat.to_csv(f"{wd_path}masters/master_B_std_subregions.csv")
+std_B_concat.to_csv(f"{wd_path}masters/master_B_std_subregions_v2.csv")
+
+#%% Cell 1b: Double check uncertainties through timeseries
+
+data = []
+rgi_ids = []
+labels = []
+rgi_ids_sel=[]
+
+members = [1, 3, 4, 6, 4]
+models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
+
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a1_rgi_date_A_V_RGIreg.csv")[['rgi_id', 'rgi_region', 'rgi_subregion', 'rgi_area_km2']].set_index(['rgi_id']).to_xarray()
+
+subs = np.unique(df.rgi_subregion)
+# Iterate over models and members, collecting data for boxplots
+# only take the model shortlist as members are handled separately
+fig, axes = plt.subplots(5,3, figsize=(8,10), sharex=True, sharey=True)
+axes=axes.flatten()
+for m, model in enumerate(models_shortlist):
+    for member in range(members[m]):
+        if model=="IPSL-CM6" or member>=1:
+            sample_id = f"{model}.0{member:02d}"  # Ensure leading zeros
+            print(sample_id)
+            i_path=os.path.join(
+                sum_dir, f'specific_massbalance_timeseries_{sample_id}.csv')
+    
+            # Load the CSV file into a DataFrame and convert to xarray
+            mb = pd.read_csv(i_path).rename(columns={"Mass_Balance":"B", "Year":"time"})#.reset_index(True)
+            mb = mb.set_index(["rgi_id", "time"]).sort_index().to_xarray()
+            mb_tot = xr.merge([df, mb])
+            
+            weights = mb_tot['rgi_area_km2'].broadcast_like(mb_tot['B'])
+
+            # Weighted numerator and denominator per subregion
+            num = (mb_tot['B'] * weights).groupby(mb_tot['rgi_subregion']).sum(dim='rgi_id')
+            den = weights.groupby(mb_tot['rgi_subregion']).sum(dim='rgi_id')
+            
+            # Weighted mean (preserves time dim automatically)
+            mb_avg = (num / den).rename('B_aw')
 
 
+            for i, sr in enumerate(subs):
+                ax = axes[i]
+                
+                # Select the data for this subregion
+                da = mb_avg.sel(rgi_subregion=sr)
+                
+                # Plot over time
+                da.plot(x='time', ax=ax, lw=1.5, label=sample_id)
+                
+                # Cosmetics
+                ax.set_title(str(sr), fontsize=9)
+                ax.grid(True, alpha=0.3)
+                ax.set_xlabel('Year') if i==13 else ax.set_xlabel('')
+                ax.set_ylabel('B (area-weighted)') if i==6 else ax.set_ylabel('')
+            
+            # mb = mb.swap_dims({"Year": "time"})  # rename Year to time dimension
+            # mb = mb.set_coords("time")           # mark it as a coordinate
+
+            
+            # Collect B values for each model and member
+            print(sample_id)#, len(mb.B.values))
+            
+            # print(len(mb.rgi_id.unique))
+            # data.append(mb.B.values)
+            
+    
+            # Store RGI IDs only for the first model/member
+            # if m == 0 and member == 0:
+            #     rgi_ids.append(mb.rgi_id.values)
+    
+            # labels.append(sample_id)
+plt.legend(ncols=1, loc='upper right', bbox_to_anchor=(2,5))
+# ax.set_title("Area-weighted mean B across subregions")
+# ax.set_xlabel("Time")
+# ax.set_ylabel("B (area-weighted)")
+plt.subplots_adjust(wspace=0.2, hspace=0.5)
+plt.tight_layout()
+plt.show()
+
+#%% Cell 1c: Make boxplot for stds
+
+data = []
+rgi_ids = []
+labels = []
+rgi_ids_sel=[]
+
+members = [1, 3, 4, 6, 4]
+models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
+
+df = pd.read_csv(
+    f"{wd_path}masters/master_gdirs_r3_a1_rgi_date_A_V_RGIreg.csv")[['rgi_id', 'rgi_region', 'rgi_subregion', 'rgi_area_km2']].set_index(['rgi_id']).to_xarray()
+subs = np.unique(df.rgi_subregion)
+data_by_sr = {sr: [] for sr in subs}
+
+rows=1
+cols=1
+fig, axes = plt.subplots(rows, cols, figsize=(8, 4), sharex=True, sharey=True)
+# axes = axes.flatten()
+data = []
+# Iterate over models and members, collecting data for boxplots
+# only take the model shortlist as members are handled separately
+colors=['red', 'orange', 'pink', 'purple', 'blue']
+for m, model in enumerate(models_shortlist):
+    for member in range(members[m]):
+        if model=="IPSL-CM6" or member>=1:
+            sample_id = f"{model}.0{member:02d}"  # Ensure leading zeros
+            print(sample_id)
+            i_path=os.path.join(
+                sum_dir, f'specific_massbalance_timeseries_{sample_id}.csv')
+    
+            # Load the CSV file into a DataFrame and convert to xarray
+            mb = pd.read_csv(i_path).rename(columns={"Mass_Balance":"B", "Year":"time"})#.reset_index(True)
+            mb = mb.set_index(["rgi_id", "time"]).sort_index().to_xarray()
+            mb_tot = xr.merge([df, mb])
+            
+            weights = mb_tot['rgi_area_km2'].broadcast_like(mb_tot['B'])
+
+            # Weighted numerator and denominator per subregion
+            num = (mb_tot['B'] * weights).groupby(mb_tot['rgi_subregion']).sum(dim='rgi_id')
+            den = weights.groupby(mb_tot['rgi_subregion']).sum(dim='rgi_id')
+            
+            # Weighted mean (preserves time dim automatically)
+            mb_avg = (num / den).rename('B_aw')
+            mb_avg_30yr = mb_avg.mean(dim='time')
+            # present_srs = set(mb_avg_30yr['rgi_subregion'].values.tolist())
+
+            for i, sr in enumerate(subs):
+                ax = axes
+                # if sr in present_srs:
+                val = float(mb_avg_30yr.sel(rgi_subregion=sr).values)
+                if np.isfinite(val):
+                    data_by_sr[sr].append(val)
+                    ax.scatter([i],val, edgecolor=colors[m], linewidth=2, facecolor='none')
+
+            # Plot over time
+            
+            # Cosmetics
+            # ax.set_title(str(sr), fontsize=9)
+            ax.grid(True, alpha=0.3)
+            # ax.set_xlabel('Year') if i==13 else ax.set_xlabel('')
+            ax.set_ylabel('B (area-weighted)') if i==6 else ax.set_ylabel('')
+        
+            # mb = mb.swap_dims({"Year": "time"})  # rename Year to time dimension
+            # mb = mb.set_coords("time")           # mark it as a coordinate
+
+            
+            # Collect B values for each model and member
+            print(sample_id)#, len(mb.B.values))
+            
+            
+# for i, sr in enumerate(subs):
+ax = axes
+vals_list = [data_by_sr[sr] for sr in subs]
+subs = [str(s) for s in subs]                   # ensure plain strings
+positions = np.arange(len(subs))                # 0..N-1
+
+# if len(vals):
+    # boxplot at x=1
+bp = ax.boxplot(
+    vals_list,
+    positions= positions,
+    widths=0.5,
+    vert=True,
+    boxprops=dict(facecolor='lightgrey'),   # <-- here
+    patch_artist=True,
+    showmeans=False,
+    medianprops=dict(linewidth=1.4, color='black'),zorder=0, 
+    # meanprops=dict(marker='o', markersize=4, color='none'), zorder=0, 
+)
+
+scatter_patches = [Line2D([0], [0], marker='o', lw=0,  markerfacecolor='none', markeredgecolor=colors[0], mew=3, markersize=7, label=models[0]),
+                   Line2D([0], [0], marker='o', lw=0,  markerfacecolor='none', markeredgecolor=colors[1], mew=3, markersize=7, label=models[1]),
+                   Line2D([0], [0], marker='o', lw=0,  markerfacecolor='none', markeredgecolor=colors[2], mew=3, markersize=7, label=models[2]),
+                   Line2D([0], [0], marker='o', lw=0,  markerfacecolor='none', markeredgecolor=colors[3], mew=3, markersize=7, label=models[3]),
+                   Line2D([0], [0], marker='o', lw=0,  markerfacecolor='none', markeredgecolor=colors[4], mew=3, markersize=7, label=models[4])]
+                   
+plt.legend(handles=scatter_patches, loc='lower center', bbox_to_anchor=(0.08, 0), fontsize=8, ncols=1)
+                 
+
+# cosmetics
+ax.axhline(0, lw=0.8, alpha=0.4)
+# ax.set_title(str(sr), fontsize=9)
+ax.grid(True, alpha=0.3)
+
+# ax.set_xlim(0.5, 1.5)
+ax.set_xticks(positions)
+ax.set_xticklabels(subs, rotation=90, ha='right', fontsize=8)
+
+if i % cols == 0:
+    ax.set_ylabel('B (area-weighted, 30-yr mean)')
+
+
+# hide any unused axes
+# for j in range(i + 1, len(axes)):
+    # axes[j].set_visible(False)
+    # plt.legend(ncols=1, loc='upper right', bbox_to_anchor=(2,5))
+# ax.set_title("Area-weighted mean B across subregions")
+# ax.set_xlabel("Time")
+# ax.set_ylabel("B (area-weighted)")
+plt.subplots_adjust(wspace=0.2, hspace=0.5)
+plt.tight_layout()
+plt.show()
 
 #%% Cell 2: Past Volume uncertainties
 
@@ -319,7 +537,81 @@ out_2014_df = out_2014.to_dataframe()
 out_2014_df.to_csv(f"{wd_path}masters/master_V_std_ci_2014.csv")
 
 
-#%% Cell 3a: Future Volume uncertainties - change
+data = []
+rgi_ids = []
+labels = []
+rgi_ids_sel=[]
+
+members = [1, 3, 4, 6, 4]
+models_shortlist = ["IPSL-CM6", "E3SM", "CESM2", "CNRM", "NorESM"]
+
+
+# Iterate over models and members, collecting data for boxplots
+# only take the model shortlist as members are handled separately
+for m, model in enumerate(models_shortlist):
+    for member in range(members[m]):
+        if model=="IPSL-CM6" or member>=1:
+            sample_id = f"{model}.0{member:02d}"  # Ensure leading zeros
+            print(sample_id)
+            i_path = os.path.join(
+                sum_dir, f'specific_massbalance_mean_{sample_id}.csv')
+    
+            # Load the CSV file into a DataFrame and convert to xarray
+            mb = pd.read_csv(i_path, index_col=0).to_xarray()
+            
+            # Collect B values for each model and member
+            print(sample_id, len(mb.B.values))
+            data.append(mb.B.values)
+            
+    
+            # Store RGI IDs only for the first model/member
+            if m == 0 and member == 0:
+                rgi_ids.append(mb.rgi_id.values)
+    
+            labels.append(sample_id)
+
+i_path_base = os.path.join(sum_dir, 'specific_massbalance_mean_W5E5.000.csv')
+mb_base = pd.read_csv(i_path_base)
+base_array = np.array(mb_base.B)
+
+# Convert the list of data into a NumPy array and transpose it
+data_array = np.array(data)
+# Shape: (number of B values, number of models * members)
+reshaped_data = data_array.T
+# Create a DataFrame for the reshaped data
+df = pd.DataFrame(reshaped_data, index=rgi_ids, columns=np.repeat(labels, 1))
+
+df['B_irr'] = base_array
+
+df.rename_axis("rgi_id", inplace=True)
+df.reset_index(drop=False, inplace=True)
+
+# Step 1: Melt the DataFrame to get B_noirr values
+df_melted = pd.melt(df, id_vars='rgi_id', value_vars=[col for col in df.columns if col != 'B_irr'],
+                    var_name='sample_id', value_name='B_noirr')
+
+# Step 2: Create a DataFrame with repeated B_irr values
+# Keep only the rgi_id and B_irr columns
+b_irr_repeated = df[['rgi_id', 'B_irr']].copy()
+b_irr_repeated = b_irr_repeated.merge(
+    df_melted[['rgi_id', 'sample_id']], on='rgi_id')  # Ensure all combinations
+
+# Now merge B_irr with melted DataFrame
+df_complete = pd.merge(df_melted, b_irr_repeated, on=['rgi_id', 'sample_id'])
+df_complete['B_delta'] = df_complete.B_irr-df_complete.B_noirr
+
+# Merge with rgis_complete
+# master_df = master_ds.to_dataframe()
+df_complete = pd.merge(df_complete, master_df, on='rgi_id', how='inner')
+
+
+new_order = ['rgi_id', 'rgi_region', 'rgi_subregion', 'full_name', 'cenlon', 'cenlat', 'rgi_date',
+             'rgi_area_km2', 'rgi_volume_km3', 'sample_id', 'B_noirr', 'B_irr', 'B_delta']
+
+df_complete = df_complete[new_order]
+# print(df_complete[1:5])
+df_complete.to_csv(
+    f"{wd_path}/masters/master_gdirs_r3_a1_rgi_date_A_V_RGIreg_B.csv")#%% Cell 3a: Future Volume uncertainties - change
 
 # 1) Open the dataset
 future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_median.nc")

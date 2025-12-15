@@ -157,7 +157,6 @@ rgi_all = gpd.GeoDataFrame(pd.concat(rgi_ids))
 
 rgi_all.to_csv(os.path.join(wd_path,"masters","rgi_all_list.csv"))
 
-#%% Cell 1b: Open list of all rgi_ids to initialize
 rgi_all=pd.read_csv(os.path.join(wd_path,"masters","rgi_all_list.csv"), index_col=0)['RGIId']
 
 

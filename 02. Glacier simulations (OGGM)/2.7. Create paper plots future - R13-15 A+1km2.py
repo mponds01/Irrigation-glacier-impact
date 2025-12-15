@@ -80,7 +80,7 @@ import matplotlib.patches as mpatches
 import matplotlib.gridspec as gridspec
 from matplotlib.colors import LightSource
 import matplotlib.ticker as mticker
-
+from itertools import product
 
 import matplotlib.lines as mlines
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
@@ -137,7 +137,7 @@ for filename in os.listdir(wd_path_pkls):
 
 print(len(gdirs_3r_a1))
 
-#%% 2a Print mean RGI date
+#%% Cell 2a Print mean RGI date
 
 dates = [gdir.rgi_date for gdir in gdirs_3r_a1]
 
@@ -162,6 +162,13 @@ colors_ssp = {
 def hex_to_rgba(hex_color, alpha=1.0):
     return clrs.to_rgba(hex_color, alpha=alpha)
 
+def hex_with_alpha_to_hex(hex_color, alpha):
+    r, g, b, _ = clrs.to_rgba(hex_color)
+    r = int(alpha * r * 255 + (1 - alpha) * 255)
+    g = int(alpha * g * 255 + (1 - alpha) * 255)
+    b = int(alpha * b * 255 + (1 - alpha) * 255)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
 # Compose your full colors dict
 colors = {
     "irr": ["black", "#40E0D0"],  # Base colors
@@ -176,8 +183,10 @@ colors = {
 
     # Future scenarios: same SSP colors but with alpha 0.5
     "noi_fut": [
-        hex_to_rgba(colors_ssp['ssp126'], 0.5),
-        hex_to_rgba(colors_ssp['ssp370'], 0.5)
+        hex_with_alpha_to_hex(colors_ssp['ssp126'], 0.6),
+        hex_with_alpha_to_hex(colors_ssp['ssp370'], 0.6)
+        # hex_to_rgba(colors_ssp['ssp126'], 0.5),
+        # hex_to_rgba(colors_ssp['ssp370'], 0.5)
     ]
 }
 
@@ -200,6 +209,18 @@ subregion_names = {
         "15-02": "East Himalaya",
         "15-03": "Hengduan Shan",
 }
+
+
+#%% Cell 2c: Test
+
+# ds_path = f'{wd_path}/summary/climate_run_output_perturbed_SSP126_CESM2.001_hydro_2074.nc'
+
+ds_path = f'{wd_path}/summary/gcm_data_SSP126_NOI.001_noi_bias_2074'
+ds = xr.open_dataset(ds_path)
+
+year_ds = ds.sel('calendar_year'==2074).sel('rgi_id'='RGI60-14.01166').temp.values
+print(year_ds)
+
 
 
 #%% Cell 3:  Create master for making subplots
@@ -306,8 +327,8 @@ for reg, region in enumerate(regions):
                    
             # Add 3-member average (PAST)
             if volumes_past_all:
-                # volume_past_avg = np.mean(volumes_past_all, axis=0)
-                volume_past_avg = np.median(volumes_past_all, axis=0)
+                volume_past_avg = np.mean(volumes_past_all, axis=0)
+                # volume_past_avg = np.median(volumes_past_all, axis=0)
                 past_records.append({
                     "exp": ex,
                     "sample_id": "3-member-avg",
@@ -319,8 +340,8 @@ for reg, region in enumerate(regions):
             # Add 3-member average (FUTURE)
             for ssp in ssps:
                 if volumes_future_all[ssp]:
-                    # volume_fut_avg = np.mean(volumes_future_all[ssp], axis=0)
-                    volume_fut_avg = np.median(volumes_future_all[ssp], axis=0)
+                    volume_fut_avg = np.mean(volumes_future_all[ssp], axis=0)
+                    # volume_fut_avg = np.median(volumes_future_all[ssp], axis=0)
                     future_records.append({
                         "exp": ex,
                         "sample_id": "3-member-avg",
@@ -361,11 +382,15 @@ for rec in future_records:
 df_future = pd.DataFrame(flat_future)
 future_ds = df_future.set_index(["exp", "sample_id", "ssp", "subregion", "time"]).to_xarray()
 
-past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past_median_2074.nc")
-future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_median_2074.nc")
+past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past_mean_2074.nc")
+future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_mean_2074.nc")
+# past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past_median_2074.nc")
+# future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_median_2074.nc")
 
-# past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past.nc")
-# future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias.nc")
+# past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past_mean.nc")
+# future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_mean.nc")
+# past_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_past_median.nc")
+# future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_median.nc")
 # future_ds.to_netcdf(f"{wd_path}masters/master_volume_subregion_future.nc")
 
 #%% Cell 3b: Update master including total volume (HMA overall)
@@ -400,8 +425,11 @@ for rec in future_records_total:
 ds_future_total = pd.DataFrame(flat_future_total).set_index(["exp", "sample_id", "ssp", "subregion", "time"]).to_xarray()
 
 ds_with_total = xr.concat([future_ds, ds_future_total], dim='subregion')
-ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total.nc")
-# ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total_2074.nc")
+# ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total_median.nc")
+# ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total_mean.nc")
+
+# ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total_2074_median.nc")
+ds_with_total.to_netcdf(f"{wd_path}masters/master_volume_subregion_future_noi_bias_incl_total_2074_mean.nc")
 # Save to disk
 
 
@@ -438,8 +466,10 @@ def historic_future_volume_evolution_hma(ax=None):
     # future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias.nc")
     # past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past_median.nc")
     # future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_median.nc")
-    past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past_median_2074.nc")
-    future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_median_2074.nc")
+    # past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past_median_2074.nc")
+    # future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_median_2074.nc")
+    past_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_past_mean_2074.nc")
+    future_ds = xr.open_dataset(f"{wd_path}/masters/master_volume_subregion_future_noi_bias_mean_2074.nc")
     
     initial_vol = past_ds.sel(time=1985).volume
     initial_volume_big=initial_vol.sel(exp="IRR").sel(sample_id="CESM2.001").sum(dim='subregion')
@@ -694,8 +724,8 @@ for ex in experiments:
                         snow_off = ds['snowfall_off_glacier_monthly'] * 1e-9
                         
                         
-                        total_runoff = melt_on + melt_off + prcp_on + prcp_off + snow_on + snow_off#sum all the runoff components
-                        # total_runoff = melt_on #+ prcp_on #+ melt_off + prcp_on + prcp_off #for melt_on only
+                        # total_runoff = melt_on + melt_off + prcp_on + prcp_off + snow_on + snow_off#sum all the runoff components
+                        total_runoff = melt_on + prcp_on #+ melt_off + prcp_on + prcp_off #for melt_on only
 
                         
                         eps = 0#1e-10
@@ -752,8 +782,8 @@ for ex in experiments:
                     prcp_off = ds['liq_prcp_off_glacier_monthly'] * 1e-9
                     snow_on = ds['snowfall_on_glacier_monthly'] * 1e-9
                     snow_off = ds['snowfall_off_glacier_monthly'] * 1e-9
-                    total_runoff = melt_on + melt_off + prcp_on + prcp_off + snow_on + snow_off#sum all the runoff components
-                    # total_runoff = melt_on #+ prcp_on #+ prcp_off + snow_on + snow_off#sum all the runoff components
+                    # total_runoff = melt_on + melt_off + prcp_on + prcp_off + snow_on + snow_off#sum all the runoff components
+                    total_runoff = melt_on + prcp_on #+ prcp_off + snow_on + snow_off#sum all the runoff components
                     
                     eps = 0#1e-10
                     shares = xr.Dataset({
@@ -791,28 +821,28 @@ df_annual = df_monthly_all.groupby(['year', 'experiment', 'ssp', 'member', 'rgi_
 df_runoff_shares = pd.concat(df_runoff_shares, ignore_index=True)
 
 #filepaths for only melt runoff components
-# opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only_2074.csv')
-# opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only_2074.csv')
+opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only_2074.csv')
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only_2074.csv')
 
 #file paths for only melt and precipitation runoff components
 # opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_meltprcpon_only.csv')
 # opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_meltprcpon_only.csv')
 
 #file paths including all runoff components
-# opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions.csv')
-# opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions.csv')
+# opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_2074.csv')
+# opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_2074.csv')
 # opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares.csv')
 
-opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_2074.csv')
-opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_2074.csv')
-opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares_2074.csv')
+# opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_2074.csv')
+# opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_2074.csv')
+# opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares_2074.csv')
 
 
 df_monthly_all.to_csv(opath_df_monthly)
 df_annual.to_csv(opath_df_annual)
 df_runoff_shares.to_csv(opath_df_runoff_shares)
 
-#%%  Cell 6: Runoff plot including share by runoff component contribution to total (key figure) - averaged over members beforehand (key figure)
+#%%  Cell 6: Runoff plot including share by runoff component contribution to total (key figure) (key figure)
 
 def annual_runoff_timeline_plot_hma_relative(ax=None):
     peak_water_dict={}
@@ -841,8 +871,8 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     df_monthly_melt = pd.read_csv(opath_df_monthly_melt, dtype={'ssp': str, 'rgi_subregion': str, 'experiment': str})[['year','month','experiment','ssp','member', 'runoff','rgi_subregion']]
      
     #process data for total runoff                  
-    # df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
-    df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #average over members
+    df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
+    # df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #average over members
     df_avg_monthly = df_avg_monthly[df_avg_monthly['runoff'] != 0.00] #exclude zeros as last year of simulation does not work
     # df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin([6, 7, 8])]
     df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin(np.arange(1,13,1))] #if we want full year
@@ -860,8 +890,8 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     
     # print(df_avg_all)
     #process data for melt only runoff
-    # df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
-    df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #median over members
+    df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
+    # df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #median over members
     df_avg_monthly_melt = df_avg_monthly_melt[df_avg_monthly_melt['runoff'] != 0.00]
     # df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin([6, 7, 8])]
     df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin(np.arange(1,13,1))] #if we want full year
@@ -874,6 +904,12 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
     # df_avg_monthly_for_std_melt = df_avg_monthly_for_std_melt[~df_avg_monthly_for_std_melt['year'].isin([2074])] 
     df_avg_annual_std_all_melt = (df_avg_monthly_for_std_melt.groupby(['year', 'experiment', 'ssp'])['runoff'].std().reset_index()) #take std before rolling mean (otherwise std is smoothened too much, losing variability)
     df_avg_annual_std_all_melt['runoff'] = df_avg_annual_std_all_melt['runoff'].fillna(0) #hist irr is nan because only 1 member - make zero for plotting
+    
+    
+    df_avg_subregions.to_csv(f'{wd_path}/masters/Total_runoff_data_by_subregion.csv')
+    df_avg_subregions_melt.to_csv(f'{wd_path}/masters/Meltonly_runoff_data_by_subregion.csv')
+    df_avg_all.to_csv(f'{wd_path}/masters/Total_runoff_data_hma.csv')
+    df_avg_all_melt.to_csv(f'{wd_path}/masters/Meltonly_runoff_data_hma.csv')
     
     if plotting_subregions =='on':
         if ax==None:
@@ -1208,9 +1244,9 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
         peak_year=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'year']
         peak_magnitude=hist_ssp.loc[hist_ssp['runoff_smoothed'].idxmax(), 'relative_runoff_smoothed']
         
-        # print("High Mountain Asia", exp, ssp)
-        # print("Peak year", peak_year, "Peak Magnitude", peak_magnitude)
-        # print("final runoff 2074", hist_ssp.loc[hist_ssp['year']==2074]['runoff_smoothed'])
+        print("High Mountain Asia", exp, ssp)
+        print("Peak year", peak_year, "Peak Magnitude", peak_magnitude)
+        print("final runoff 2073", hist_ssp.loc[hist_ssp['year']==2073]['relative_runoff_smoothed'])
         
         peak_water_dict = {
             'rgi_subregion': 'hma',
@@ -1227,7 +1263,7 @@ def annual_runoff_timeline_plot_hma_relative(ax=None):
             color=colors[f'{exp}{add}'][s]
         face_color='none' if exp=='noi' else color
         # ax.axvline(peak_year, color=color, linestyle=ls, lw=lw_tot-2)
-        ax.scatter(peak_year, peak_magnitude*100,marker='o', s=100, facecolor=face_color, edgecolor=color, linewidths=5)  # thicker edge)
+        ax.scatter(peak_year, peak_magnitude*100,marker='o', s=100, facecolor=face_color, edgecolor=color, linewidths=3, zorder=100)  # thicker edge)
         # print(peak_year, peak_magnitude)
     
     records_df = pd.DataFrame(totals, columns=["experiment", "ssp", "year", "runoff"])
@@ -1346,8 +1382,8 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
     df_monthly_melt = pd.read_csv(opath_df_monthly_melt, dtype={'ssp': str, 'rgi_subregion': str, 'experiment': str})[['year','month','experiment','ssp','member', 'runoff','rgi_subregion']]
      
     #process data for total runoff                  
-    # df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
-    df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #average over members
+    df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
+    # df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #average over members
     df_avg_monthly = df_avg_monthly[df_avg_monthly['runoff'] != 0.00] #exclude zeros as last year of simulation does not work
     # df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin([6, 7, 8])]
     df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin(np.arange(1,13,1))] #if we want full year
@@ -1369,8 +1405,8 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
     df_avg_annual_std_all['runoff'] = df_avg_annual_std_all['runoff'].fillna(0) #hist irr is nan because only 1 member - make zero for plotting    
     
     #process data for melt only runoff
-    # df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
-    df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #median over members
+    df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
+    # df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #median over members
     df_avg_monthly_melt = df_avg_monthly_melt[df_avg_monthly_melt['runoff'] != 0.00]
     # df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin([6, 7, 8])]
     df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin(np.arange(1,13,1))] #if we want full year
@@ -1579,7 +1615,7 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
                     color=colors[f'{exp}{add}'][s]
                 face_color='none' if exp=='noi' else color
                 # ax.axvline(peak_year, color=color, linestyle=ls, lw=lw_tot-2)
-                axes[region].scatter(peak_year, peak_magnitude,marker='o', s=70, facecolor=face_color, edgecolor=color, linewidths=5)  # thicker edge)
+                axes[region].scatter(peak_year, peak_magnitude,marker='o', s=70, facecolor=face_color, edgecolor=color, linewidths=3, zorder=100)  # thicker edge)
                 print(peak_year, peak_magnitude)
                 # ax[c].axvline(peak_year, color=color, linestyle=ls, lw=lw_tot-2)
                 # axes[region].set_title(f'Region: {region}')
@@ -1643,7 +1679,7 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
         hist_ssp['runoff_cumulative'] = hist_ssp.sort_values(['year']).groupby(['experiment'])['runoff'].cumsum() #sorting as years need to be in order for accumulation
         hist_ssp_melt['runoff_cumulative'] = hist_ssp_melt.sort_values(['year']).groupby(['experiment'])['runoff'].cumsum() #sorting as years need to be in order for accumulation
     
-        # Smooth
+        # Smooth by calculating 11 year rolling mean
         hist_ssp['runoff_smoothed'] = (hist_ssp['runoff'].rolling(window=11, center=True, min_periods=1).mean())
         hist_ssp_melt['runoff_smoothed'] = (hist_ssp_melt['runoff'].rolling(window=11, center=True, min_periods=1).mean())
         hist_ssp_std['runoff_smoothed'] = (hist_ssp_std['runoff'].rolling(window=11, center=True, min_periods=1).mean())
@@ -1653,7 +1689,7 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
         hist_ssp_melt['relative_runoff_smoothed'] = (hist_ssp_melt['runoff_relative'].rolling(window=11, center=True, min_periods=1).mean())
         hist_ssp_std['relative_runoff_smoothed'] = (hist_ssp_std['runoff_relative'].rolling(window=11, center=True, min_periods=1).mean())
         
-        print("smoothed", hist_ssp['relative_runoff_smoothed'])
+        # print("smoothed", hist_ssp['relative_runoff_smoothed'])
         # hist_ssp['cumulative_runoff_smoothed'] = (hist_ssp['runoff_cumulative'].rolling(window=11, center=True, min_periods=1).mean())
         # hist_ssp_melt['cumulative_runoff_smoothed'] = (hist_ssp_melt['runoff_cumulative'].rolling(window=11, center=True, min_periods=1).mean())
     
@@ -1771,7 +1807,7 @@ def annual_runoff_timeline_plot_hma_subregions(ax=None):
             color=colors[f'{exp}{add}'][s]
         face_color='none' if exp=='noi' else color
         # ax.axvline(peak_year, color=color, linestyle=ls, lw=lw_tot-2)
-        ax.scatter(peak_year, peak_magnitude,marker='o', s=100, facecolor=face_color, edgecolor=color, linewidths=5)  # thicker edge)
+        ax.scatter(peak_year, peak_magnitude,marker='o', s=100, facecolor=face_color, edgecolor=color, linewidths=3, zorder=100)  # thicker edge)
         print(peak_year, peak_magnitude)
         peak_std=hist_ssp_std.loc[hist_ssp['runoff_smoothed'].idxmax(), 'runoff_smoothed']
         print(peak_year, ssp, peak_std)
@@ -3018,6 +3054,282 @@ fig_path = '/Users/magaliponds/Library/CloudStorage/OneDrive-VrijeUniversiteitBr
 plt.show()
 plt.show()
 
+
+
+
+
+
+
+
+#%% Cell 15c: Calculate runoff numbers in text
+
+#Load all the data
+
+#when working with melton only
+opath_df_monthly_melt = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_melton_only_2074.csv')
+opath_df_annual_melt = os.path.join(wd_path,'masters','hydro_output_annual_subregions_melton_only_2074.csv')
+
+#when working with total runoff|
+opath_df_monthly = os.path.join(wd_path,'masters','hydro_output_monthly_subregions_2074.csv')
+opath_df_annual = os.path.join(wd_path,'masters','hydro_output_annual_subregions_2074.csv')
+
+opath_df_runoff_shares = os.path.join(wd_path,'masters','hydro_output_monthly_runoff_shares.csv')
+
+#load annual data for all runoff
+df_annual = pd.read_csv(opath_df_annual).reset_index()
+df_monthly = pd.read_csv(opath_df_monthly, dtype={'ssp': str, 'rgi_subregion': str, 'experiment': str})[['year','month','experiment','ssp','member', 'runoff','rgi_subregion']]
+
+#load annual data for only melt
+df_annual_melt = pd.read_csv(opath_df_annual_melt).reset_index()
+df_monthly_melt = pd.read_csv(opath_df_monthly_melt, dtype={'ssp': str, 'rgi_subregion': str, 'experiment': str})[['year','month','experiment','ssp','member', 'runoff','rgi_subregion']]
+ 
+#process data for total runoff   
+
+#choose between mean or median              
+df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
+# df_avg_monthly = (df_monthly.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #average over members
+
+df_avg_monthly = df_avg_monthly[df_avg_monthly['runoff'] != 0.00] #exclude zeros as last year of simulation does not work
+# df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin([6, 7, 8])]
+df_avg_jja = df_avg_monthly[df_avg_monthly['month'].isin(np.arange(1,13,1))] #if we want full year
+df_avg_subregions = (df_avg_jja.groupby(['year', 'experiment', 'ssp', 'rgi_subregion'])['runoff'].sum().reset_index()) #sum yo annual runoff for all subregions per year
+df_avg_all = (df_avg_subregions.groupby(['year', 'experiment', 'ssp'])['runoff'].sum().reset_index()) #sum for all subregions in HMA
+
+df_monthly_std_in = df_monthly[df_monthly['runoff'] != 0.00] #exclude zeros as last year of simulation does not work
+df_avg_monthly_for_std = (df_monthly_std_in.groupby(['year', 'experiment', 'ssp', 'member'])['runoff'].sum().reset_index()) #calculate annual sum of runoff for the different members for hma overall
+df_avg_annual_std_all = (df_avg_monthly_for_std.groupby(['year', 'experiment', 'ssp'])['runoff'].std().reset_index()) #take std before rolling mean (otherwise std is smoothened too much, losing variability)
+df_avg_annual_std_all['runoff'] = df_avg_annual_std_all['runoff'].fillna(0) #hist irr is nan because only 1 member - make zero for plotting
+
+
+#process data for melt only runoff
+#choose between mean or median              
+
+df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].mean().reset_index()) #average over members
+# df_avg_monthly_melt = (df_monthly_melt.groupby(['year','month', 'experiment', 'ssp', 'rgi_subregion',])['runoff'].median().reset_index()) #median over members
+
+df_avg_monthly_melt = df_avg_monthly_melt[df_avg_monthly_melt['runoff'] != 0.00]
+# df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin([6, 7, 8])] #for summer only
+df_avg_jja_melt = df_avg_monthly_melt[df_avg_monthly_melt['month'].isin(np.arange(1,13,1))] #if we want full year
+df_avg_subregions_melt = (df_avg_jja_melt.groupby(['year', 'experiment', 'ssp', 'rgi_subregion'])['runoff'].sum().reset_index()) #sum yo annual runoff for all subregions per year
+df_avg_subregions_melt = df_avg_subregions_melt[~df_avg_subregions_melt['year'].isin([2074])] 
+df_avg_all_melt = (df_avg_subregions_melt.groupby(['year', 'experiment', 'ssp'])['runoff'].sum().reset_index()) #sum for all subregions in HMA
+
+df_monthly_std_in_melt = df_monthly_melt[df_monthly_melt['runoff'] != 0.00] #exclude zeros as last year of simulation does not work
+df_avg_monthly_for_std_melt = (df_monthly_std_in_melt.groupby(['year', 'experiment', 'ssp', 'member'])['runoff'].sum().reset_index()) #calculate annual sum of runoff for the different members for hma overall
+df_avg_monthly_for_std_melt = df_avg_monthly_for_std_melt[~df_avg_monthly_for_std_melt['year'].isin([2074])]
+
+df_avg_monthly_for_std_126 = (df_avg_monthly_for_std[df_avg_monthly_for_std['ssp'].isin(['hist', '126'])].copy())
+df_avg_monthly_for_std_370 = (df_avg_monthly_for_std_melt[df_avg_monthly_for_std['ssp'].isin(['hist', '370'])].copy())
+df_avg_monthly_for_std_melt_126 = (df_avg_monthly_for_std_melt[df_avg_monthly_for_std_melt['ssp'].isin(['hist', '126'])].copy())
+df_avg_monthly_for_std_melt_370 = (df_avg_monthly_for_std_melt[df_avg_monthly_for_std_melt['ssp'].isin(['hist', '370'])].copy())
+
+
+#calculate the reference data
+base_year_all =df_avg_all[df_avg_all['year']==1985][df_avg_all['experiment']=='irr'].runoff.values
+base_year_subregions =df_avg_subregions[df_avg_subregions['year']==1985][df_avg_subregions['experiment']=='irr'].set_index('rgi_subregion')['runoff']
+base_year_all_melt =df_avg_all[df_avg_all_melt['year']==1985][df_avg_all_melt['experiment']=='irr'].runoff.values
+base_year_subregions_melt =df_avg_subregions[df_avg_subregions_melt['year']==1985][df_avg_subregions_melt['experiment']=='irr'].set_index('rgi_subregion')['runoff']
+
+df_avg_subregions['baseyear_runoff'] = df_avg_subregions['rgi_subregion'].map(base_year_subregions) # df_avg_subregions['runoff'] / 
+# df_avg_subregions['relative_runoff']= df_avg_subregions['runoff']/df_avg_subregions['baseyear_runoff'] *100
+df_avg_subregions_melt['baseyear_runoff'] = df_avg_subregions_melt['rgi_subregion'].map(base_year_subregions_melt) # df_avg_subregions['runoff'] / 
+# df_avg_subregions_melt['relative_runoff']= df_avg_subregions_melt['runoff']/df_avg_subregions_melt['baseyear_runoff'] *100
+
+df_avg_all['baseyear_runoff'] = base_year_all *np.ones(len(df_avg_all))
+# df_avg_all['relative_runoff'] = df_avg_all['runoff']/df_avg_all['baseyear_runoff'] *100
+df_avg_all_melt['baseyear_runoff'] = base_year_all_melt *np.ones(len(df_avg_all_melt))
+# df_avg_all_melt['relative_runoff'] = df_avg_all_melt['runoff']/df_avg_all_melt['baseyear_runoff'] *100
+df_avg_all['rgi_subregion']="HMA"
+df_avg_all_melt['rgi_subregion']="HMA"
+
+#creaet one long timeseriese 
+datasets = {
+    "runoff_all": df_avg_all,
+    "melt_all": df_avg_all_melt,
+    "runoff_sub": df_avg_subregions,
+    "melt_sub": df_avg_subregions_melt,
+}
+
+def filter_tag(df, exp, ssp):
+    return (
+        df[(df["experiment"] == exp) & (df["ssp"].isin(["hist", ssp]))]
+        .assign(experiment=exp, ssp=ssp)
+    )
+
+# Build each combined dataset by concatenating over (exp, ssp)
+combined = {
+    name: pd.concat(
+        [filter_tag(df, exp, ssp) for exp, ssp in product(["irr", "noi"], ["126", "370"])],
+        ignore_index=True
+    )
+    for name, df in datasets.items()
+}
+
+# Access them:
+df_all_combined        = combined["runoff_all"]
+df_all_melt_combined   = combined["melt_all"]
+df_sub_combined        = combined["runoff_sub"]
+df_sub_melt_combined   = combined["melt_sub"]
+
+# (Optional) single tidy frame with a 'type' label
+df_final = pd.concat(
+    [df.assign(type=name) for name, df in combined.items()],
+    ignore_index=True
+)
+
+
+#now use 11 year smoothening window to 
+df_final['runoff_smoothed'] = (df_final.sort_values('year').groupby(['ssp', 'experiment', 'rgi_subregion','type'], group_keys=False)['runoff'].transform(lambda x: x.rolling(window=11, center=True, min_periods=1).mean()))
+
+
+
+BASE_YEAR = 1985
+EXP_COL = 'experiment'
+BASE_EXP = 'irr'          # baseline experiment
+POS_EXP, NEG_EXP = 'irr', 'noi'   # for delta
+
+def add_relative(df, value_col='runoff', key_col=None, base_year=BASE_YEAR, exp_col=EXP_COL, base_exp=BASE_EXP):
+    """
+    Adds columns:
+      - 'baseyear_runoff' (or baseyear_<value_col>)
+      - 'relative_runoff' (or relative_<value_col>) = value/base × 100
+    If key_col is provided, baseline is per-key; otherwise a scalar.
+    """
+    base_col = f'baseyear_{value_col}'
+    rel_col  = f'relative_{value_col}'
+
+    # filter baseline rows
+    mask = (df['year'] == base_year) & (df[exp_col] == base_exp)
+    if key_col is None:
+        # single scalar baseline
+        base_vals = df.loc[mask, value_col]
+        if base_vals.empty:
+            raise ValueError(f"No baseline found for year={base_year}, {exp_col}={base_exp}")
+        baseline = float(base_vals.iloc[0])  # assume one baseline row
+        df[base_col] = baseline
+    else:
+        # per-key baseline series indexed by key
+        base_series = (df.loc[mask, [key_col, value_col]]
+                         .drop_duplicates(subset=[key_col])     # in case of duplicates
+                         .set_index(key_col)[value_col])
+        # align types/whitespace just in case
+        df[key_col] = df[key_col].astype(str).str.strip()
+        base_series.index = base_series.index.astype(str).str.strip()
+        df[base_col] = df[key_col].map(base_series)
+
+    # safe divide to avoid inf when baseline==0 or NaN
+    df[rel_col] = np.divide(
+        df[value_col], df[base_col],
+        out=np.full(len(df), np.nan, dtype=float),
+        where=(pd.notna(df[base_col]) & (df[base_col] != 0))
+    ) * 100.0 -100
+    return df
+
+def compute_delta(df, value_col='runoff', keys=('year',), exp_col=EXP_COL, pos=POS_EXP, neg=NEG_EXP):
+    """
+    Returns a DataFrame with keys and a new column f'delta_{value_col}' = pos - neg.
+    Works for both 'all' (keys=('year',)) and 'subregion' (keys=('rgi_subregion','year')) cases.
+    """
+    # Build pivot so columns are experiments
+    idx = list(keys)
+    pivot = (df.pivot_table(index=idx, columns=exp_col, values=value_col, aggfunc='first')
+               .rename_axis(None, axis=1))  # flatten axis name
+
+    # compute delta
+    delta_col = f'delta_{value_col}'
+    pivot[delta_col] = pivot.get(pos) - pivot.get(neg)
+
+    # bring keys back as columns
+    out = pivot.reset_index()[idx + [delta_col]]
+    return out
+
+# ---- Apply to your four DataFrames ----
+# Assumption: all four frames use the same 'runoff' column name (even for melt). If melt uses a different column name,
+# change `value_col` accordingly.
+
+df_final = add_relative(df_final, value_col='runoff_smoothed', key_col=None)
+delta_all = compute_delta(df_final, value_col='runoff_smoothed', keys=('year','type','ssp','rgi_subregion'))
+delta_all['delta_relative_runoff_smoothed'] = compute_delta(df_final, value_col='relative_runoff_smoothed', keys=('year','type','ssp','rgi_subregion'))['delta_relative_runoff_smoothed']
+
+
+
+#Test plotting 
+fig,ax1=plt.subplots()
+
+for exp in ['irr','noi']:
+    for s, ssp in enumerate(['126', '370']):
+        ls='-' if exp=='irr' else '--'
+            
+    
+        subset = df_final.query("type == 'runoff_all' and experiment == @exp and ssp == @ssp")
+        ax1.plot(subset.query("year <= 2014").year,
+                 subset.query("year <= 2014").relative_runoff_smoothed, ls=ls,
+                 color='black', label='≤ 2014')
+        
+        ax1.plot(subset.query("year > 2014").year,
+                 subset.query("year > 2014").relative_runoff_smoothed, ls=ls,
+                 color=colors[f'{exp}_fut'][s], label='> 2014')
+
+ax2=ax1.twinx()
+for s, ssp in enumerate(['126', '370']):
+
+    subset = delta_all.query("type == 'runoff_all' and ssp == @ssp")
+    ax2.bar(subset.query("year <= 2014").year,
+             subset.query("year <= 2014").delta_relative_runoff_smoothed,
+             color='black', label='≤ 2014')
+    
+    ax2.bar(subset.query("year > 2014").year,
+             subset.query("year > 2014").delta_relative_runoff_smoothed,
+             color=colors[f'{exp}_fut'][s], label='> 2014')
+
+
+#Now calculate the average years used in the text
+
+
+max_diff = delta_all.loc[delta_all['year'] <=2014].groupby(['ssp','type','rgi_subregion'])['delta_relative_runoff_smoothed'].min()
+hist_dif = delta_all.where(delta_all['year']<=2014).groupby(['ssp','type','rgi_subregion']).mean()
+fut_dif_max = delta_all.loc[delta_all['year'] >=2014].groupby(['ssp','type','rgi_subregion'])['delta_relative_runoff_smoothed'].max()
+fut_dif_min = delta_all.loc[delta_all['year'] >=2014].groupby(['ssp','type','rgi_subregion'])['delta_relative_runoff_smoothed'].min()
+fut_dif_mean = delta_all.loc[delta_all['year'] >=2014].groupby(['ssp','type','rgi_subregion'])['delta_relative_runoff_smoothed'].mean()
+fut_dif_mean_60s = delta_all.loc[delta_all['year'].between(2060,2073)].groupby(['ssp','type','rgi_subregion'])['delta_relative_runoff_smoothed'].mean()
+# print(fut_dif_mean_60s.loc[('126','runoff_all','HMA')])
+# print(fut_dif_mean_60s.loc[('370','runoff_all','HMA')])
+
+
+
+print(hist_dif.loc[('126', 'runoff_all', 'HMA')]['delta_relative_runoff_smoothed'])
+print(hist_dif.loc[('370', 'runoff_all', 'HMA')]['delta_relative_runoff_smoothed']) #different because of smoothening
+print(hist_dif.loc[('126', 'melt_all', 'HMA')]['delta_relative_runoff_smoothed'])
+print(hist_dif.loc[('370', 'melt_all', 'HMA')]['delta_relative_runoff_smoothed']) #different because of smoothening
+max126 = fut_dif_max.loc[('126', 'runoff_all', 'HMA')]
+year_max126 = delta_all.loc[delta_all['delta_relative_runoff_smoothed'] == max126, 'year'].iloc[0]
+
+max370 = fut_dif_max.loc[('370', 'runoff_all', 'HMA')]
+year_max370 = delta_all.loc[delta_all['delta_relative_runoff_smoothed'] == max370, 'year'].iloc[0]
+
+print("max 126:", max126, year_max126)
+print("max 370:", max370, year_max370)
+
+
+
+#Subregions with most change
+
+print(fut_dif_mean.loc[('126', 'runoff_sub')].sort_values())
+print(fut_dif_mean.loc[('370', 'runoff_sub')].sort_values())
+
+print(fut_dif_max.loc[('370', 'runoff_sub')].min())
+print(fut_dif_max.loc[('126', 'runoff_sub')].max())
+print(fut_dif_max.loc[('370', 'runoff_sub')].max())
+
+
+
+
+
+
+delta_all.to_csv(f'{wd_path}/masters/master_delta_runoff_complete_mean.csv')
+df_final.to_csv(f'{wd_path}/masters/master_total_runoff_complete_mean.csv')
+# delta_all.to_csv(f'{wd_path}/masters/master_delta_runoff_complete_median.csv')
+# df_final.to_csv(f'{wd_path}/masters/master_total_runoff_complete_median.csv')
 
 
 

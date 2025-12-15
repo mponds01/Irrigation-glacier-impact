@@ -948,6 +948,8 @@ base_year_all =df_avg_all[df_avg_all['year']==1985][df_avg_all['experiment']=='i
 
 totals=[]
 
+
+#vary the std files below to get the right uncertainty output
 # df = df_avg_monthly_for_std.copy()
 df = df_126.copy()
 # df = df_370.copy()
@@ -1038,7 +1040,18 @@ delta_median = (
 
 std_delta = std_delta.merge(delta_median, on=['year','ssp'], how='left')
 
-std_delta.to_csv(f'{wd_path}/masters/spread_hist_ssp_totalrunoff_delta_126.csv')
+
+print("past total runoff uncertainty (%)", std_delta.query("ssp=='hist'").std_delta_rel_smoothed.mean()*100)
+print("future 126 total runoff uncertainty (%)", std_delta.query("ssp=='126' and year==2064").std_delta_rel_smoothed.mean()*100) #year corresponding to max year in runoff cell 15c
+print("future 370 total runoff uncertainty (%)", std_delta.query("ssp=='370' and year==2061").std_delta_rel_smoothed.mean()*100) #year corresponding to max year in runoff cell 15c
+
+print("future 126 total runoff uncertainty (%), year 2064", std_delta.query("ssp=='126' and year==2064").std_delta_rel_smoothed.mean()*100) #year corresponding to max year in runoff cell 15c
+print("future 370 total runoff uncertainty (%), year 2061", std_delta.query("ssp=='370' and year==2061").std_delta_rel_smoothed.mean()*100) #year corresponding to max year in runoff cell 15c
+
+
+print(std_delta[(std_delta['ssp'] == '126') & (std_delta['year'].between(2060, 2070))][['year','std_delta_rel_smoothed']].mean()*100) 
+
+# std_delta.to_csv(f'{wd_path}/masters/spread_hist_ssp_totalrunoff_delta_126.csv')
 # std_delta.to_csv(f'{wd_path}/masters/spread_hist_ssp_totalrunoff_delta_370.csv')
 # std_delta.to_csv(f'{wd_path}/masters/spread_hist_ssp_melt_delta_126.csv')
 # std_delta.to_csv(f'{wd_path}/masters/spread_hist_ssp_melt_delta_370.csv')

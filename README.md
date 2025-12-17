@@ -1,87 +1,92 @@
 # IRRIGATION BUFFERS MASS BALANCES IN HMA
 
-** Table of contents ** 
-General 
+## **Table of contents**
 
-Requirements
+- General  
+- Requirements  
+- Data layout  
+- Execution order  
+- Reproducibility notes  
+- Tips & troubleshooting  
+- Citation  
+- License  
 
-Data layout
+---
 
-Execution order
+## **General**
 
-Reproducibility notes
+This repository contains all required code to run simulations assessing the impact of irrigation on glacier mass balances in High Mountain Asia (HMA).
 
-Tips & troubleshooting
+---
 
-Citation
+## **Requirements**
 
-License
+- Python ≥ 3.9  
+- Core scientific stack: `numpy`, `pandas`, `xarray`  
+- Plotting: `matplotlib`  
+- I/O & utilities: `pathlib`, `tqdm`  
+- Parallelization: standard library `multiprocessing`  
+  - Multiprocessing code is written for macOS  
+  - On Windows this may be more straightforward, as OGGM multiprocessing does not work natively on macOS  
+- OGGM and dependencies (for glacier model context and data conventions): `oggm`
 
+---
 
-** General **
+## **Execution order**
 
-This file contains all the required code for running the simulation on impact of irrigation on the mass balances in High Mountain Asia
+The workflow is structured into the following sections:
 
+1. Climate data processing to define monthly, seasonal, and yearly 30-year average perturbations  
+2. Glacier simulations and plotting  
 
-** Requirements **
+Each subsection contains a separate README file with step-by-step instructions on how to run the code.
 
-Python ≥ 3.9
+All code is executed within an OGGM environment.
 
-Core scientific stack: numpy, pandas, xarray
+---
 
-Plotting: matplotlib
+## **Data layout**
 
-IO & utilities: pathlib, tqdm
+All data are stored in a single working directory.  
+In my case, this directory is named:
 
-Parallelization: standard library multiprocessing (used by the scripts) 
-    Multiprocessign code is written for mac (on windows this might be more straighforward as OGGM multiprocessing is not working directly on mac )
-
-OGGM and dependencies (for glacier model context and data conventions): oggm
-
-
-** Execution order **
-
-It is build up out of the following sections
-
-1. Climate Data Processing to define the monthly, seasonal and yearly 30-yr average perturbations 
-2. Glacier simulations & Plotting
-
-Each of the subsctions has a separate readme file with step by step description of how to run the code
-
-The code is run in an OGGM environemnt
-
-
-** Data layout **
-
-Data is stored in one working directory. 
-In my case called " 04. Modelled perturbation-glacier interactions - R13-15 A+1km2"
-The working directory contains the following subfolders which are automaticly created by OGGM: log, per_glacier, pkls, summary
-Additionally a directory is created to save master dataset: masters
-
-Figures are saved in a separate folder. 
-
-Please adjust all working directories and paths to your preferences
+4. Modelled perturbation-glacier interactions - R13-15 A+1km2
 
 
-** Reproducability notes **
+The working directory contains the following subfolders, which are automatically created by OGGM:
 
-Code has been run on a macbook Pro 2023, with M3 chip.
-Multiprocessing sections on glacier modelling can take up quite some time. 
-Especially volume evolution can take up to a few days if run for all the model and member combinations.
-Plotting sections will run very fast. The map plot can take a bit longer (few minutes)
+- `log`  
+- `per_glacier`  
+- `pkls`  
+- `summary`  
 
-** Tips and troubleshooting ** 
+Additionally, a directory named `masters` is created to store master datasets.
 
-In case of returning errros, troubleshooting guidelines are included in the text.
-Apart from that the code should be error free. 
+Figures are saved in a separate folder.
 
-** Citation ** 
+Please adjust all working directories and file paths to your own system and preferences.
 
-Please include citation in line with publication data
+---
 
-** Licence ** 
+## **Reproducibility notes**
 
-Not needed
+The code was run on a MacBook Pro (2023) with an M3 chip.
 
+Multiprocessing sections related to glacier modelling can be computationally expensive.  
+In particular, volume evolution simulations can take several days when run for all model and ensemble member combinations.
 
-    
+Plotting routines run quickly, although map plotting may take a few minutes.
+
+---
+
+## **Tips & troubleshooting**
+
+In case of errors, troubleshooting guidelines are included directly in the code comments and accompanying text.  
+Aside from this, the code should run without issues when the environment is set up correctly.
+
+---
+
+## **Citation**
+
+Please include a citation consistent with the associated publication.
+

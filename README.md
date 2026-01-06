@@ -29,7 +29,7 @@ All code is provided to support **peer review, reproducibility, and reuse**.
 
 ---
 
-## ** System Requirements**
+## **System Requirements**
 
 ### Operating System
 - Tested on **macOS 14+ (Apple Silicon, M3 chip)**
